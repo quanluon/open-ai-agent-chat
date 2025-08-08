@@ -27,6 +27,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: optibot/optibot_job:latest
+          tags: optibot:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
