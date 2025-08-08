@@ -310,4 +310,4 @@ The job creates detailed run artifacts at `runs/last_run.json`:
 
 ## Screenshot
 
-[Screenshot of Playground answer will be added after testing]
+`./screen-shoot.png`
