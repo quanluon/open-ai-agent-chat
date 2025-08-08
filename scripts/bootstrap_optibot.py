@@ -38,6 +38,12 @@ try:
 except Exception as exc:  # pragma: no cover
     raise SystemExit("Missing dependency: tiktoken. Run: pip install -r requirements.txt") from exc
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception as exc:  # pragma: no cover
+    raise SystemExit("Missing dependency: python-dotenv. Run: pip install -r requirements.txt") from exc
+
 
 DEFAULT_MODEL = "gpt-4o-mini"
 STATE_FILE = "optibot_state.json"

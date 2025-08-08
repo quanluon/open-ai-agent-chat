@@ -9,6 +9,7 @@ A complete solution for scraping OptiSigns support articles, converting them to 
 **API upload is mandatory—no UI drag-and-drop here.**
 
 #### Create the Assistant
+
 - **Easiest way**: Use OpenAI Playground UI
 - **System prompt (verbatim)**:
   ```
@@ -20,6 +21,7 @@ A complete solution for scraping OptiSigns support articles, converting them to 
   ```
 
 #### Programmatic Vector Store Upload
+
 - Via Python script, upload Markdown files to OpenAI Vector Store files via OpenAI API
 - Upload files to OpenAI
 - Attach files to Vector Stores
@@ -27,13 +29,16 @@ A complete solution for scraping OptiSigns support articles, converting them to 
 - Log how many files and chunks were embedded
 
 #### Quick Sanity Check
+
 Jump into the Playground, attach the Assistant, and ask: **"How do I add a YouTube video?"**
+
 - Take a screenshot showing a correct answer with citations
 - You can learn more about the overall OpenAI Agent [here](https://platform.openai.com/docs/assistants)
 
 ### 2. Deploy Scraper as Daily Job (~2h)
 
 Wrap your scraper-uploader in `main.py`:
+
 - **Dockerize** (Dockerfile)
 - **Schedule** it to run once per day on DigitalOcean Platform
 - **Job must**:
@@ -45,13 +50,13 @@ Wrap your scraper-uploader in `main.py`:
 
 ### 3. Deliverables
 
-| Item | Must Have |
-|------|-----------|
-| **GitHub repo** | Please DO NOT name your github repo "optisigns" something, just give it cryptic name so future candidate not easy to find when search optisigns |
-| **Clear commits** | No hard-coded keys (use .env.sample) |
-| **Dockerfile** | `docker run -e OPENAI_API_KEY=... main.py` runs once and exits 0 |
-| **README (≤ 1 page)** | • setup • how to run locally • link to daily job logs • screenshot of Playground answer |
-| **Screenshot** | Assistant correctly answers sample questions with cited URLs |
+| Item                  | Must Have                                                                                                                                       |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GitHub repo**       | Please DO NOT name your github repo "optisigns" something, just give it cryptic name so future candidate not easy to find when search optisigns |
+| **Clear commits**     | No hard-coded keys (use .env.sample)                                                                                                            |
+| **Dockerfile**        | `docker run -e OPENAI_API_KEY=... main.py` runs once and exits 0                                                                                |
+| **README (≤ 1 page)** | • setup • how to run locally • link to daily job logs • screenshot of Playground answer                                                         |
+| **Screenshot**        | Assistant correctly answers sample questions with cited URLs                                                                                    |
 
 ## Overview
 
@@ -65,17 +70,43 @@ This project demonstrates:
 ### Prerequisites
 
 - Python 3.10+
-- Set `OPENAI_API_KEY` in your environment
-- Install deps:
+- Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+### Environment Setup
+
+1. **Copy the environment template**:
+
+   ```bash
+   cp .env.sample .env
+   ```
+
+2. **Edit `.env` file** with your actual values:
+
+   ```bash
+   # Required
+   OPENAI_API_KEY=your_actual_openai_api_key_here
+   ASSISTANT_ID=asst_your_actual_assistant_id_here
+   VECTOR_STORE_ID=vs_your_actual_vector_store_id_here
+
+   # Optional (defaults shown)
+   MODEL=gpt-4o-mini
+   CHUNK_SIZE=800
+   CHUNK_OVERLAP=200
+   LOCALE=en-us
+   MAX_ARTICLES=45
+   ARTICLES_DIR=./articles
+   ```
+
+**Note**: The `.env` file is automatically loaded by all scripts. No need to prefix commands with environment variables.
+
 ### Files
 
 - `scripts/scrape_to_markdown.py`: Scrapes ≥30 articles from `support.optisigns.com` using Zendesk API, converts HTML to clean Markdown, preserves headings/code blocks, removes nav/ads, and adds citation headers
-- `scripts/bootstrap_optibot.py`: Legacy script for creating Vector Store and Assistant (use environment variables instead)
+- `scripts/bootstrap_optibot.py`: Script for creating Vector Store and Assistant (uses `.env` file for configuration)
 - `scripts/ask_assistant.py`: CLI tool to test the Assistant with questions and view citations
 - `main.py`: **Main orchestrator** - runs daily job: scrape → detect delta → upload changes → log results
 - `Dockerfile`: Production-ready container for DigitalOcean App Platform scheduling
@@ -90,11 +121,12 @@ pip install -r requirements.txt
 
 ### Setup Assistant and Vector Store
 
-Create your Assistant and Vector Store in the OpenAI Playground or via API, then set the IDs in your environment:
+Create your Assistant and Vector Store in the OpenAI Playground or via API, then add the IDs to your `.env` file:
 
 ```bash
-export ASSISTANT_ID=asst_your_assistant_id_here
-export VECTOR_STORE_ID=vs_your_vector_store_id_here
+# In your .env file
+ASSISTANT_ID=asst_your_assistant_id_here
+VECTOR_STORE_ID=vs_your_vector_store_id_here
 ```
 
 ### Optional API sanity check
@@ -102,7 +134,7 @@ export VECTOR_STORE_ID=vs_your_vector_store_id_here
 Ask a question directly via API using your Assistant:
 
 ```bash
-OPENAI_API_KEY=... python scripts/ask_assistant.py \
+python scripts/ask_assistant.py \
   --question "How do I add a YouTube video?" \
   --assistant-id asst_your_assistant_id_here
 ```
@@ -130,7 +162,7 @@ After running the job, test the Assistant:
 Test the Assistant programmatically:
 
 ```bash
-OPENAI_API_KEY=... python scripts/ask_assistant.py \
+python scripts/ask_assistant.py \
   --question "How do I add a YouTube video?" \
   --state-file runs/last_run.json
 ```
@@ -175,10 +207,10 @@ Details:
 Run the whole pipeline locally:
 
 ```bash
-OPENAI_API_KEY=... python3 main.py
+python3 main.py
 ```
 
-Environment overrides:
+Environment variables (configure in `.env` file):
 
 - `ASSISTANT_ID` (required: your assistant ID)
 - `VECTOR_STORE_ID` (required: your vector store ID)
@@ -200,15 +232,17 @@ Build and run:
 
 ```bash
 docker build -t optibot-job .
-docker run --rm -e OPENAI_API_KEY=$OPENAI_API_KEY optibot-job
+docker run --rm --env-file .env optibot-job
 ```
+
+**Note**: The Docker container will use the environment variables from your `.env` file.
 
 ### DigitalOcean App Platform (Scheduled Job)
 
 1. **Create App**: Create a new App, select Docker, and point to this repo directory
 2. **Configure Job**:
    - Set Run Command to `python main.py`
-   - Add environment variable `OPENAI_API_KEY`
+   - Add environment variables from your `.env` file (or use environment variable import)
    - Set schedule to run daily (e.g., "0 2 \* \* \*" for 2 AM UTC)
 3. **Deploy**: Deploy the app
 4. **Monitor**:

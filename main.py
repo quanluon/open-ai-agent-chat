@@ -19,7 +19,6 @@ Environment variables (optional overrides):
 - ARTICLES_DIR (default: ./articles)
 
 State files:
-- optibot_state.json: persists assistant/vector store IDs and configuration
 - sync_state.json: tracks file hashes and OpenAI file IDs for delta sync
 - runs/last_run.json: latest run summary
 """
