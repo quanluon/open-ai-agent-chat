@@ -231,8 +231,8 @@ Artifacts & logs:
 Build and run:
 
 ```bash
-docker build -t optibot-job .
-docker run --rm --env-file .env optibot-job
+docker build -t optibot_job .
+docker run --rm --env-file .env optibot_job
 ```
 
 **Note**: The Docker container will use the environment variables from your `.env` file.
@@ -244,6 +244,7 @@ docker run --rm --env-file .env optibot-job
 The project is configured for automatic deployment to DigitalOcean App Platform via GitHub Actions:
 
 1. **Repository Secrets**: Ensure these secrets are set in your GitHub repository:
+
    - `OPENAI_API_KEY` - Your OpenAI API key
    - `ASSISTANT_ID` - Your OpenAI Assistant ID
    - `VECTOR_STORE_ID` - Your OpenAI Vector Store ID
@@ -252,12 +253,14 @@ The project is configured for automatic deployment to DigitalOcean App Platform 
    - `DOCKERHUB_TOKEN` - Your Docker Hub access token
 
 2. **Deployment Process**:
+
    - Push to `main` branch triggers automatic deployment
    - GitHub Actions builds Docker image and pushes to Docker Hub
    - DigitalOcean App Platform deploys the updated image
    - Job runs daily at 2 AM UTC automatically
 
 3. **Manual Deployment**:
+
    - Go to GitHub Actions tab
    - Select "Deploy to DigitalOcean" workflow
    - Click "Run workflow" to trigger manual deployment
@@ -299,7 +302,7 @@ The job creates detailed run artifacts at `runs/last_run.json`:
 
 - **Platform**: DigitalOcean App Platform
 - **Schedule**: Daily at 2 AM UTC
-- **Log Location**: 
+- **Log Location**:
   - DO App Platform dashboard → App → Logs
   - GitHub Actions → Deploy to DigitalOcean → View logs
 - **Run Artifacts**: `/app/runs/last_run.json` in container
