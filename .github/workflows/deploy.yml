@@ -1,0 +1,72 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to DigitalOcean App Platform
+      uses: digitalocean/app_action@main
+      with:
+        app_name: 'optibot-daily-job'
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        images: '[{"name":"optibot-job","registry_type":"DOCKER_HUB","registry":"optibot","tag":"latest"}]'
+        source_dir: .
+        environment_variables: |
+          [
+            {
+              "key": "OPENAI_API_KEY",
+              "value": "${{ secrets.OPENAI_API_KEY }}",
+              "type": "SECRET"
+            },
+            {
+              "key": "ASSISTANT_ID", 
+              "value": "${{ secrets.ASSISTANT_ID }}",
+              "type": "SECRET"
+            },
+            {
+              "key": "VECTOR_STORE_ID",
+              "value": "${{ secrets.VECTOR_STORE_ID }}",
+              "type": "SECRET"
+            },
+            {
+              "key": "MODEL",
+              "value": "gpt-4o-mini",
+              "type": "GENERAL"
+            },
+            {
+              "key": "CHUNK_SIZE",
+              "value": "800",
+              "type": "GENERAL"
+            },
+            {
+              "key": "CHUNK_OVERLAP",
+              "value": "200",
+              "type": "GENERAL"
+            },
+            {
+              "key": "LOCALE",
+              "value": "en-us",
+              "type": "GENERAL"
+            },
+            {
+              "key": "MAX_ARTICLES",
+              "value": "45",
+              "type": "GENERAL"
+            },
+            {
+              "key": "ARTICLES_DIR",
+              "value": "./articles",
+              "type": "GENERAL"
+            }
+          ]
+        run_command: "python main.py"
+        run_schedule: "0 2 * * *"  # Daily at 2 AM UTC
