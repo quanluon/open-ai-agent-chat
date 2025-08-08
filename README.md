@@ -2,6 +2,57 @@
 
 A complete solution for scraping OptiSigns support articles, converting them to clean Markdown, and automatically syncing them to an OpenAI Assistant with Vector Store for intelligent customer support.
 
+## Project Phases
+
+### 1. Build Assistant & Programmatically Load Vector Store (~2h)
+
+**API upload is mandatory—no UI drag-and-drop here.**
+
+#### Create the Assistant
+- **Easiest way**: Use OpenAI Playground UI
+- **System prompt (verbatim)**:
+  ```
+  You are OptiBot, the customer-support bot for OptiSigns.com.
+  • Tone: helpful, factual, concise.
+  • Only answer using the uploaded docs.
+  • Max 5 bullet points; else link to the doc.
+  • Cite up to 3 "Article URL:" lines per reply.
+  ```
+
+#### Programmatic Vector Store Upload
+- Via Python script, upload Markdown files to OpenAI Vector Store files via OpenAI API
+- Upload files to OpenAI
+- Attach files to Vector Stores
+- Chunking strategy is up to you; just explain it in the README
+- Log how many files and chunks were embedded
+
+#### Quick Sanity Check
+Jump into the Playground, attach the Assistant, and ask: **"How do I add a YouTube video?"**
+- Take a screenshot showing a correct answer with citations
+- You can learn more about the overall OpenAI Agent [here](https://platform.openai.com/docs/assistants)
+
+### 2. Deploy Scraper as Daily Job (~2h)
+
+Wrap your scraper-uploader in `main.py`:
+- **Dockerize** (Dockerfile)
+- **Schedule** it to run once per day on DigitalOcean Platform
+- **Job must**:
+  - Re-scrape
+  - Detect new/updated articles (hash, Last-Modified, etc.)
+  - Upload only the delta
+  - Log counts: added, updated, skipped
+  - Provide a link to job logs or last run artefact
+
+### 3. Deliverables
+
+| Item | Must Have |
+|------|-----------|
+| **GitHub repo** | Please DO NOT name your github repo "optisigns" something, just give it cryptic name so future candidate not easy to find when search optisigns |
+| **Clear commits** | No hard-coded keys (use .env.sample) |
+| **Dockerfile** | `docker run -e OPENAI_API_KEY=... main.py` runs once and exits 0 |
+| **README (≤ 1 page)** | • setup • how to run locally • link to daily job logs • screenshot of Playground answer |
+| **Screenshot** | Assistant correctly answers sample questions with cited URLs |
+
 ## Overview
 
 This project demonstrates:
@@ -11,18 +62,10 @@ This project demonstrates:
 3. **Daily automated sync** - Detects changes and uploads only deltas
 4. **Production deployment** - Dockerized for DigitalOcean App Platform scheduling
 
-## System Prompt (verbatim)
-
-You are OptiBot, the customer-support bot for OptiSigns.com.
-• Tone: helpful, factual, concise.
-• Only answer using the uploaded docs.
-• Max 5 bullet points; else link to the doc.
-• Cite up to 3 "Article URL:" lines per reply.
-
 ### Prerequisites
 
 - Python 3.10+
-- Set `OPENAI_API_KEY` in your environment.
+- Set `OPENAI_API_KEY` in your environment
 - Install deps:
 
 ```bash
@@ -31,19 +74,19 @@ pip install -r requirements.txt
 
 ### Files
 
-- `scripts/scrape_to_markdown.py`: Scrapes ≥30 articles from `support.optisigns.com` using Zendesk API, converts HTML to clean Markdown, preserves headings/code blocks, removes nav/ads, and adds citation headers.
-- `scripts/bootstrap_optibot.py`: Legacy script for creating Vector Store and Assistant (use environment variables instead).
-- `scripts/ask_assistant.py`: CLI tool to test the Assistant with questions and view citations.
-- `main.py`: **Main orchestrator** - runs daily job: scrape → detect delta → upload changes → log results.
-- `Dockerfile`: Production-ready container for DigitalOcean App Platform scheduling.
-- `.env.sample`: Environment variable template.
+- `scripts/scrape_to_markdown.py`: Scrapes ≥30 articles from `support.optisigns.com` using Zendesk API, converts HTML to clean Markdown, preserves headings/code blocks, removes nav/ads, and adds citation headers
+- `scripts/bootstrap_optibot.py`: Legacy script for creating Vector Store and Assistant (use environment variables instead)
+- `scripts/ask_assistant.py`: CLI tool to test the Assistant with questions and view citations
+- `main.py`: **Main orchestrator** - runs daily job: scrape → detect delta → upload changes → log results
+- `Dockerfile`: Production-ready container for DigitalOcean App Platform scheduling
+- `.env.sample`: Environment variable template
 
 ### Chunking Strategy
 
 - **Strategy**: Static token-based chunking with overlap
 - **Parameters**: `--chunk-size` (default 800 tokens), `--chunk-overlap` (default 200 tokens)
-- **Rationale**: 800-token chunks balance retrieval specificity and context packing for downstream reasoning. 200-token overlap preserves continuity for section boundaries and reduces information loss at chunk edges.
-- **Logging**: The bootstrap script estimates total chunks client-side using the same stride formula and writes file-level and aggregate stats to `optibot_state.json` and stdout. Final server-side chunk counts may differ slightly.
+- **Rationale**: 800-token chunks balance retrieval specificity and context packing for downstream reasoning. 200-token overlap preserves continuity for section boundaries and reduces information loss at chunk edges
+- **Logging**: The bootstrap script estimates total chunks client-side using the same stride formula and writes file-level and aggregate stats to `optibot_state.json` and stdout. Final server-side chunk counts may differ slightly
 
 ### Setup Assistant and Vector Store
 
@@ -121,11 +164,11 @@ python3 scripts/scrape_to_markdown.py
 
 Details:
 
-- Scope: Only `support.optisigns.com` pages are crawled via the Zendesk API; article pages match `/hc/<locale>/articles/<id>-<slug>`.
-- Extraction: Converts HTML to Markdown, preserving headings, lists, code blocks, and links.
-- Filenames: `<id>-<slug>.md` to avoid collisions and keep stable references.
-- Citations: Each file prepends `Article URL: <source>` for downstream citation.
-- Links: Internal links to other scraped articles are rewritten to local `./<id>-<slug>.md` when resolvable; anchors are preserved.
+- **Scope**: Only `support.optisigns.com` pages are crawled via the Zendesk API; article pages match `/hc/<locale>/articles/<id>-<slug>`
+- **Extraction**: Converts HTML to Markdown, preserving headings, lists, code blocks, and links
+- **Filenames**: `<id>-<slug>.md` to avoid collisions and keep stable references
+- **Citations**: Each file prepends `Article URL: <source>` for downstream citation
+- **Links**: Internal links to other scraped articles are rewritten to local `./<id>-<slug>.md` when resolvable; anchors are preserved
 
 ## Orchestrator & Scheduling
 
@@ -200,3 +243,15 @@ The job creates detailed run artifacts at `runs/last_run.json`:
   "total_size_bytes": 1024000
 }
 ```
+
+## Daily Job Logs
+
+- **Platform**: DigitalOcean App Platform
+- **Schedule**: Daily at 2 AM UTC
+- **Log Location**: DO App Platform dashboard → App → Logs
+- **Run Artifacts**: `/app/runs/last_run.json` in container
+- **Status**: [Link to job logs will be added after deployment]
+
+## Screenshot
+
+[Screenshot of Playground answer will be added after testing]
