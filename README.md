@@ -239,16 +239,33 @@ docker run --rm --env-file .env optibot-job
 
 ### DigitalOcean App Platform (Scheduled Job)
 
-1. **Create App**: Create a new App, select Docker, and point to this repo directory
-2. **Configure Job**:
-   - Set Run Command to `python main.py`
-   - Add environment variables from your `.env` file (or use environment variable import)
-   - Set schedule to run daily (e.g., "0 2 \* \* \*" for 2 AM UTC)
-3. **Deploy**: Deploy the app
+#### Automatic Deployment via GitHub Actions
+
+The project is configured for automatic deployment to DigitalOcean App Platform via GitHub Actions:
+
+1. **Repository Secrets**: Ensure these secrets are set in your GitHub repository:
+   - `OPENAI_API_KEY` - Your OpenAI API key
+   - `ASSISTANT_ID` - Your OpenAI Assistant ID
+   - `VECTOR_STORE_ID` - Your OpenAI Vector Store ID
+   - `DIGITALOCEAN_ACCESS_TOKEN` - Your DigitalOcean API token
+   - `DOCKERHUB_USERNAME` - Your Docker Hub username
+   - `DOCKERHUB_TOKEN` - Your Docker Hub access token
+
+2. **Deployment Process**:
+   - Push to `main` branch triggers automatic deployment
+   - GitHub Actions builds Docker image and pushes to Docker Hub
+   - DigitalOcean App Platform deploys the updated image
+   - Job runs daily at 2 AM UTC automatically
+
+3. **Manual Deployment**:
+   - Go to GitHub Actions tab
+   - Select "Deploy to DigitalOcean" workflow
+   - Click "Run workflow" to trigger manual deployment
+
 4. **Monitor**:
    - View logs in the DO App Platform dashboard
    - Check `/app/runs/last_run.json` in the container for run artifacts
-   - Optionally attach a volume to persist run history
+   - GitHub Actions logs show build and deployment status
 
 #### Job Features
 
@@ -282,7 +299,9 @@ The job creates detailed run artifacts at `runs/last_run.json`:
 
 - **Platform**: DigitalOcean App Platform
 - **Schedule**: Daily at 2 AM UTC
-- **Log Location**: DO App Platform dashboard → App → Logs
+- **Log Location**: 
+  - DO App Platform dashboard → App → Logs
+  - GitHub Actions → Deploy to DigitalOcean → View logs
 - **Run Artifacts**: `/app/runs/last_run.json` in container
 - **Status**: [Link to job logs will be added after deployment]
 
