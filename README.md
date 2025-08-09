@@ -79,19 +79,17 @@ pip install -r requirements.txt
 ### Environment Setup
 
 1. **Copy the environment template**:
-
    ```bash
    cp .env.sample .env
    ```
 
 2. **Edit `.env` file** with your actual values:
-
    ```bash
    # Required
    OPENAI_API_KEY=your_actual_openai_api_key_here
    ASSISTANT_ID=asst_your_actual_assistant_id_here
    VECTOR_STORE_ID=vs_your_actual_vector_store_id_here
-
+   
    # Optional (defaults shown)
    MODEL=gpt-4o-mini
    CHUNK_SIZE=800
@@ -231,8 +229,8 @@ Artifacts & logs:
 Build and run:
 
 ```bash
-docker build -t optibot_job .
-docker run --rm --env-file .env optibot_job
+docker build -t optibot-job .
+docker run --rm --env-file .env optibot-job
 ```
 
 **Note**: The Docker container will use the environment variables from your `.env` file.
@@ -244,25 +242,20 @@ docker run --rm --env-file .env optibot_job
 The project is configured for automatic deployment to DigitalOcean App Platform via GitHub Actions:
 
 1. **Repository Secrets**: Ensure these secrets are set in your GitHub repository:
-
    - `OPENAI_API_KEY` - Your OpenAI API key
    - `ASSISTANT_ID` - Your OpenAI Assistant ID
    - `VECTOR_STORE_ID` - Your OpenAI Vector Store ID
    - `DIGITALOCEAN_ACCESS_TOKEN` - Your DigitalOcean API token
-   - `DOCKERHUB_USERNAME` - Your Docker Hub username
-   - `DOCKERHUB_TOKEN` - Your Docker Hub access token
 
 2. **Deployment Process**:
-
    - Push to `main` branch triggers automatic deployment
-   - GitHub Actions builds Docker image and pushes to Docker Hub
+   - GitHub Actions builds Docker image and pushes to GitHub Container Registry
    - DigitalOcean App Platform deploys the updated image
    - Job runs daily at 2 AM UTC automatically
 
 3. **Manual Deployment**:
-
    - Go to GitHub Actions tab
-   - Select "Deploy to DigitalOcean" workflow
+   - Select "Build and Deploy to DigitalOcean" workflow
    - Click "Run workflow" to trigger manual deployment
 
 4. **Monitor**:
@@ -302,12 +295,12 @@ The job creates detailed run artifacts at `runs/last_run.json`:
 
 - **Platform**: DigitalOcean App Platform
 - **Schedule**: Daily at 2 AM UTC
-- **Log Location**:
+- **Log Location**: 
   - DO App Platform dashboard → App → Logs
-  - GitHub Actions → Deploy to DigitalOcean → View logs
+  - GitHub Actions → Build and Deploy to DigitalOcean → View logs
 - **Run Artifacts**: `/app/runs/last_run.json` in container
 - **Status**: [Link to job logs will be added after deployment]
 
 ## Screenshot
 
-`./screen-shoot.png`
+[Screenshot of Playground answer will be added after testing]
