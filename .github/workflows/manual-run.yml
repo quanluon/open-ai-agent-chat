@@ -1,0 +1,51 @@
+name: Manual Run OptiBot
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_articles:
+        description: 'Maximum articles to process'
+        required: false
+        default: '45'
+        type: string
+
+jobs:
+  manual-run:
+    runs-on: [self-hosted, linux, X64]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          cd ${{ github.workspace }}
+          docker build -t optibot:latest .
+
+      - name: Run OptiBot manually
+        run: |
+          echo "Running OptiBot manually with MAX_ARTICLES=${{ github.event.inputs.max_articles || '45' }}"
+          
+          # Create temporary env file with custom settings
+          cat > /tmp/optibot-manual.env << EOF
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ASSISTANT_ID=${{ secrets.ASSISTANT_ID }}
+          VECTOR_STORE_ID=${{ secrets.VECTOR_STORE_ID }}
+          MODEL=gpt-4o-mini
+          CHUNK_SIZE=800
+          CHUNK_OVERLAP=200
+          LOCALE=en-us
+          MAX_ARTICLES=${{ github.event.inputs.max_articles || '45' }}
+          ARTICLES_DIR=./articles
+          EOF
+          
+          # Run the job
+          docker run --rm --env-file /tmp/optibot-manual.env -v /opt/optibot/logs:/app/runs optibot:latest
+          
+          # Show results
+          echo "=== Manual Run Completed ==="
+          cat /opt/optibot/logs/last_run.json | jq . || cat /opt/optibot/logs/last_run.json
+
+      - name: Cleanup
+        run: |
+          rm -f /tmp/optibot-manual.env

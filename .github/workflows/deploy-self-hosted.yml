@@ -1,0 +1,75 @@
+name: Deploy to Self-Hosted Droplet
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, X64]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment variables
+        run: |
+          echo "Setting up environment..."
+          mkdir -p /opt/optibot/logs
+          cd /opt/optibot
+
+      - name: Create environment file
+        run: |
+          cat > /opt/optibot/.env << EOF
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ASSISTANT_ID=${{ secrets.ASSISTANT_ID }}
+          VECTOR_STORE_ID=${{ secrets.VECTOR_STORE_ID }}
+          MODEL=gpt-4o-mini
+          CHUNK_SIZE=800
+          CHUNK_OVERLAP=200
+          LOCALE=en-us
+          MAX_ARTICLES=45
+          ARTICLES_DIR=./articles
+          EOF
+
+      - name: Build Docker image locally
+        run: |
+          cd ${{ github.workspace }}
+          docker build -t optibot:latest .
+
+      - name: Stop existing container
+        run: |
+          docker stop optibot-cron || true
+          docker rm optibot-cron || true
+
+      - name: Setup cron job
+        run: |
+          # Remove existing optibot cron jobs
+          crontab -l 2>/dev/null | grep -v "optibot" | crontab - || true
+          
+          # Add new cron job for daily execution at 2 AM UTC
+          (crontab -l 2>/dev/null; echo "0 2 * * * /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
+
+      - name: Test deployment
+        run: |
+          echo "Testing deployment..."
+          docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs optibot:latest
+          echo "Deployment test completed!"
+
+      - name: Show deployment status
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "✅ Docker image built: optibot:latest"
+          echo "✅ Environment file created: /opt/optibot/.env"
+          echo "✅ Cron job scheduled: Daily at 2 AM UTC"
+          echo "✅ Log directory: /opt/optibot/logs/"
+          echo ""
+          echo "=== Cron Schedule ==="
+          crontab -l | grep optibot || echo "No cron jobs found"
+          echo ""
+          echo "=== Log Files ==="
+          ls -la /opt/optibot/logs/ || echo "Log directory not found"
+          echo ""
+          echo "=== Recent Log Output ==="
+          tail -10 /opt/optibot/logs/cron.log 2>/dev/null || echo "No recent logs"
