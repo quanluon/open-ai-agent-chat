@@ -2,282 +2,291 @@
 
 A complete solution for scraping OptiSigns support articles, converting them to clean Markdown, and automatically syncing them to an OpenAI Assistant with Vector Store for intelligent customer support.
 
-## Project Phases
-
-### 1. Build Assistant & Programmatically Load Vector Store (~2h)
-
-**API upload is mandatory—no UI drag-and-drop here.**
-
-#### Create the Assistant
-
-- **Easiest way**: Use OpenAI Playground UI
-- **System prompt (verbatim)**:
-  ```
-  You are OptiBot, the customer-support bot for OptiSigns.com.
-  • Tone: helpful, factual, concise.
-  • Only answer using the uploaded docs.
-  • Max 5 bullet points; else link to the doc.
-  • Cite up to 3 "Article URL:" lines per reply.
-  ```
-
-#### Programmatic Vector Store Upload
-
-- Via Python script, upload Markdown files to OpenAI Vector Store files via OpenAI API
-- Upload files to OpenAI
-- Attach files to Vector Stores
-- Chunking strategy is up to you; just explain it in the README
-- Log how many files and chunks were embedded
-
-#### Quick Sanity Check
-
-Jump into the Playground, attach the Assistant, and ask: **"How do I add a YouTube video?"**
-
-- Take a screenshot showing a correct answer with citations
-- You can learn more about the overall OpenAI Agent [here](https://platform.openai.com/docs/assistants)
-
-### 2. Deploy Scraper as Daily Job (~2h)
-
-Wrap your scraper-uploader in `main.py`:
-
-- **Dockerize** (Dockerfile)
-- **Schedule** it to run once per day on DigitalOcean Platform
-- **Job must**:
-  - Re-scrape
-  - Detect new/updated articles (hash, Last-Modified, etc.)
-  - Upload only the delta
-  - Log counts: added, updated, skipped
-  - Provide a link to job logs or last run artefact
-
-### 3. Deliverables
-
-| Item                  | Must Have                                                                                                                                       |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **GitHub repo**       | Please DO NOT name your github repo "optisigns" something, just give it cryptic name so future candidate not easy to find when search optisigns |
-| **Clear commits**     | No hard-coded keys (use .env.sample)                                                                                                            |
-| **Dockerfile**        | `docker run -e OPENAI_API_KEY=... main.py` runs once and exits 0                                                                                |
-| **README (≤ 1 page)** | • setup • how to run locally • link to daily job logs • screenshot of Playground answer                                                         |
-| **Screenshot**        | Assistant correctly answers sample questions with cited URLs                                                                                    |
-
-## Overview
-
-This project demonstrates:
-
-1. **Web scraping & content normalization** - Ingests messy web content and converts to clean Markdown
-2. **API-based vector store upload** - Programmatically uploads content without UI drag-and-drop
-3. **Daily automated sync** - Detects changes and uploads only deltas
-4. **Production deployment** - Dockerized for DigitalOcean App Platform scheduling
+## Quick Start
 
 ### Prerequisites
 
 - Python 3.10+
-- Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
+- Docker (for deployment)
+- OpenAI API key
 
 ### Environment Setup
 
-1. **Copy the environment template**:
+1. **Clone and setup**:
+   ```bash
+   git clone https://github.com/quanluon/open-ai-agent-chat.git
+   cd open-ai-agent-chat
+   pip install -r requirements.txt
+   ```
+
+2. **Configure environment**:
    ```bash
    cp .env.sample .env
+   # Edit .env with your actual values
    ```
 
-2. **Edit `.env` file** with your actual values:
+## How to Run Locally
+
+### Option 1: Direct Python Execution
+
+```bash
+# Setup environment
+cp .env.sample .env
+# Edit .env with your OpenAI credentials
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run individual components
+python scripts/scrape_to_markdown.py --max-articles 10  # Test scraping
+python scripts/bootstrap_optibot.py --docs-dir ./articles  # Setup Assistant
+python main.py  # Run full pipeline
+```
+
+### Option 2: Docker (Recommended)
+
+```bash
+# Build image
+docker build -t optibot:latest .
+
+# Run with environment file
+docker run --rm --env-file .env -v $(pwd)/logs:/app/runs optibot:latest
+
+# Or run with environment variables
+docker run --rm \
+  -e OPENAI_API_KEY=your_key \
+  -e ASSISTANT_ID=your_assistant_id \
+  -e VECTOR_STORE_ID=your_vector_store_id \
+  -v $(pwd)/logs:/app/runs \
+  optibot:latest
+```
+
+### Testing Individual Scripts
+
+```bash
+# Test scraping only
+python scripts/scrape_to_markdown.py --out-dir ./test-articles --max-articles 5
+
+# Test Assistant API
+python scripts/ask_assistant.py --question "How do I add a YouTube video?"
+
+# Test Vector Store upload
+python scripts/bootstrap_optibot.py --docs-dir ./articles
+```
+
+## How to Deploy
+
+### Deployment Architecture
+
+```
+GitHub Repository → Self-Hosted Runner (DigitalOcean Droplet) → Docker Container → Cron Job
+```
+
+### Step 1: Setup DigitalOcean Droplet
+
+1. **Create Droplet**:
+   - OS: Ubuntu 22.04 LTS
+   - Size: Basic (1GB RAM minimum)
+   - Location: Choose closest region
+
+2. **Install Dependencies**:
    ```bash
-   # Required
-   OPENAI_API_KEY=your_actual_openai_api_key_here
-   ASSISTANT_ID=asst_your_actual_assistant_id_here
-   VECTOR_STORE_ID=vs_your_actual_vector_store_id_here
+   # SSH into droplet
+   ssh root@YOUR_DROPLET_IP
    
-   # Optional (defaults shown)
-   MODEL=gpt-4o-mini
-   CHUNK_SIZE=800
-   CHUNK_OVERLAP=200
-   LOCALE=en-us
-   MAX_ARTICLES=45
-   ARTICLES_DIR=./articles
+   # Update system
+   apt update && apt upgrade -y
+   
+   # Install Docker
+   curl -fsSL https://get.docker.com -o get-docker.sh
+   sh get-docker.sh
+   systemctl start docker
+   systemctl enable docker
+   
+   # Install jq for JSON processing
+   apt install -y jq
    ```
 
-**Note**: The `.env` file is automatically loaded by all scripts. No need to prefix commands with environment variables.
+### Step 2: Setup GitHub Self-Hosted Runner
 
-### Files
+1. **In your GitHub repository**:
+   - Go to **Settings** → **Actions** → **Runners**
+   - Click **"New self-hosted runner"**
+   - Select **Linux** and **x64**
 
-- `scripts/scrape_to_markdown.py`: Scrapes ≥30 articles from `support.optisigns.com` using Zendesk API, converts HTML to clean Markdown, preserves headings/code blocks, removes nav/ads, and adds citation headers
-- `scripts/bootstrap_optibot.py`: Script for creating Vector Store and Assistant (uses `.env` file for configuration)
-- `scripts/ask_assistant.py`: CLI tool to test the Assistant with questions and view citations
-- `main.py`: **Main orchestrator** - runs daily job: scrape → detect delta → upload changes → log results
-- `Dockerfile`: Production-ready container for DigitalOcean App Platform scheduling
-- `.env.sample`: Environment variable template
+2. **On your Droplet, run the provided commands**:
+   ```bash
+   # Download and configure runner
+   mkdir actions-runner && cd actions-runner
+   curl -o actions-runner-linux-x64-2.311.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
+   tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
+   
+   # Configure runner (use token from GitHub)
+   ./config.sh --url https://github.com/quanluon/open-ai-agent-chat --token YOUR_TOKEN
+   
+   # Install as service
+   sudo ./svc.sh install
+   sudo ./svc.sh start
+   ```
 
-### Chunking Strategy
+### Step 3: Configure Repository Secrets
 
-- **Strategy**: Static token-based chunking with overlap
-- **Parameters**: `--chunk-size` (default 800 tokens), `--chunk-overlap` (default 200 tokens)
-- **Rationale**: 800-token chunks balance retrieval specificity and context packing for downstream reasoning. 200-token overlap preserves continuity for section boundaries and reduces information loss at chunk edges
-- **Logging**: The bootstrap script estimates total chunks client-side using the same stride formula and writes file-level and aggregate stats to `optibot_state.json` and stdout. Final server-side chunk counts may differ slightly
+In GitHub repository **Settings** → **Secrets and variables** → **Actions**, add:
 
-### Setup Assistant and Vector Store
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `ASSISTANT_ID`: Your OpenAI Assistant ID
+- `VECTOR_STORE_ID`: Your OpenAI Vector Store ID
 
-Create your Assistant and Vector Store in the OpenAI Playground or via API, then add the IDs to your `.env` file:
+### Step 4: Deploy
 
-```bash
-# In your .env file
-ASSISTANT_ID=asst_your_assistant_id_here
-VECTOR_STORE_ID=vs_your_vector_store_id_here
-```
+1. **Automatic Deployment**:
+   ```bash
+   # Push to main branch triggers deployment
+   git push origin main
+   ```
 
-### Optional API sanity check
+2. **Manual Deployment**:
+   - Go to **Actions** tab in GitHub
+   - Select **"Deploy to Self-Hosted Droplet"**
+   - Click **"Run workflow"**
 
-Ask a question directly via API using your Assistant:
+3. **Manual Run** (for testing):
+   - Go to **Actions** tab
+   - Select **"Manual Run OptiBot"**
+   - Click **"Run workflow"**
+   - Optionally set custom article count
 
-```bash
-python scripts/ask_assistant.py \
-  --question "How do I add a YouTube video?" \
-  --assistant-id asst_your_assistant_id_here
-```
+### Step 5: Monitor Deployment
 
-This prints the answer and any file citations the API returns.
-
-## Testing & Validation
-
-### Quick Sanity Check
-
-After running the job, test the Assistant:
-
-1. **Open OpenAI Playground**: Go to https://platform.openai.com/playground
-2. **Select Assistants**: Choose the Assistants experience
-3. **Load Assistant**: Use the Assistant ID from `optibot_state.json` or `runs/last_run.json`
-4. **Test Question**: Ask "How do I add a YouTube video?"
-5. **Verify Response**:
-   - Uses at most 5 bullet points or links to the doc
-   - Includes up to 3 citations labeled "Article URL:"
-   - Tone is helpful, factual, and concise
-6. **Take Screenshot**: Document the successful response
-
-### API Testing
-
-Test the Assistant programmatically:
+#### Check Deployment Status
 
 ```bash
-python scripts/ask_assistant.py \
-  --question "How do I add a YouTube video?" \
-  --state-file runs/last_run.json
+# SSH to droplet
+ssh root@YOUR_DROPLET_IP
+
+# Check if cron job is scheduled
+crontab -l
+
+# Check Docker image
+docker images | grep optibot
+
+# Verify environment file
+cat /opt/optibot/.env
+
+# Check log directory
+ls -la /opt/optibot/logs/
 ```
 
-### Validation Checklist
-
-- [ ] Scraper fetches ≥30 articles from support.optisigns.com
-- [ ] Markdown files are clean (no nav/ads, preserved headings/code blocks)
-- [ ] Vector Store upload works via API (no UI drag-and-drop)
-- [ ] Assistant responds with correct system prompt behavior
-- [ ] Citations include "Article URL:" format
-- [ ] Daily job detects and uploads only deltas
-- [ ] Run logs show added/updated/skipped counts
-- [ ] Docker container runs successfully
-
-## Scrape ⇒ Markdown
-
-Run the scraper to collect ≥30 articles into `./articles/` as clean Markdown:
+#### View Logs
 
 ```bash
-python3 scripts/scrape_to_markdown.py \
-  --out-dir ./articles \
-  --max-articles 40
+# Real-time cron execution logs
+tail -f /opt/optibot/logs/cron.log
+
+# Last run results
+cat /opt/optibot/logs/last_run.json | jq .
+
+# System cron logs
+tail -f /var/log/cron
 ```
 
-Or simply run with defaults (writes to `./articles`):
+### Daily Job Schedule
+
+- **Schedule**: Daily at 2 AM UTC (`0 2 * * * ...`)
+- **Command**: `docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest`
+- **Logs**: `/opt/optibot/logs/cron.log`
+- **Results**: `/opt/optibot/logs/last_run.json`
+
+## Project Structure
+
+```
+├── main.py                    # Main orchestrator
+├── Dockerfile                 # Container definition
+├── requirements.txt           # Python dependencies
+├── .env.sample               # Environment template
+├── scripts/
+│   ├── scrape_to_markdown.py # Article scraper
+│   ├── bootstrap_optibot.py  # Assistant setup
+│   └── ask_assistant.py      # Testing tool
+└── .github/workflows/
+    ├── deploy-self-hosted.yml # Auto deployment
+    └── manual-run.yml         # Manual execution
+```
+
+## Environment Variables
 
 ```bash
-python3 scripts/scrape_to_markdown.py
+# Required
+OPENAI_API_KEY=sk-...                    # Your OpenAI API key
+ASSISTANT_ID=asst_...                    # Assistant ID from OpenAI
+VECTOR_STORE_ID=vs_...                   # Vector Store ID from OpenAI
+
+# Optional (with defaults)
+MODEL=gpt-4o-mini                        # OpenAI model
+CHUNK_SIZE=800                           # Token chunk size
+CHUNK_OVERLAP=200                        # Chunk overlap
+LOCALE=en-us                             # Article locale
+MAX_ARTICLES=45                          # Max articles to process
+ARTICLES_DIR=./articles                  # Output directory
 ```
 
-Details:
+## Troubleshooting
 
-- **Scope**: Only `support.optisigns.com` pages are crawled via the Zendesk API; article pages match `/hc/<locale>/articles/<id>-<slug>`
-- **Extraction**: Converts HTML to Markdown, preserving headings, lists, code blocks, and links
-- **Filenames**: `<id>-<slug>.md` to avoid collisions and keep stable references
-- **Citations**: Each file prepends `Article URL: <source>` for downstream citation
-- **Links**: Internal links to other scraped articles are rewritten to local `./<id>-<slug>.md` when resolvable; anchors are preserved
-
-## Orchestrator & Scheduling
-
-Run the whole pipeline locally:
+### Local Issues
 
 ```bash
-python3 main.py
+# Check environment
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('API Key:', 'SET' if os.environ.get('OPENAI_API_KEY') else 'NOT SET')"
+
+# Test Docker
+docker run --rm optibot:latest python --version
+
+# Check logs
+tail -f logs/cron.log
 ```
 
-Environment variables (configure in `.env` file):
-
-- `ASSISTANT_ID` (required: your assistant ID)
-- `VECTOR_STORE_ID` (required: your vector store ID)
-- `MODEL` (default: gpt-4o-mini)
-- `CHUNK_SIZE` (default: 800)
-- `CHUNK_OVERLAP` (default: 200)
-- `LOCALE` (default: en-us)
-- `MAX_ARTICLES` (default: 45)
-- `ARTICLES_DIR` (default: `./articles`)
-
-Artifacts & logs:
-
-- `sync_state.json`: per-file SHA and remote file_id for delta sync
-- `runs/last_run.json`: counts of added/updated/skipped/removed and IDs of deleted remote files
-
-### Docker
-
-Build and run:
+### Deployment Issues
 
 ```bash
-docker build -t optibot-job .
-docker run --rm --env-file .env optibot-job
+# Check runner status
+sudo ./svc.sh status
+
+# Restart runner
+sudo ./svc.sh stop
+sudo ./svc.sh start
+
+# Check runner logs
+cat _diag/Runner_*.log
 ```
 
-**Note**: The Docker container will use the environment variables from your `.env` file.
+### Common Fixes
 
-### DigitalOcean App Platform (Scheduled Job)
+1. **"Permission denied"**: `sudo chmod +x /opt/optibot/`
+2. **"Docker not found"**: Install Docker and add user to docker group
+3. **"Runner offline"**: Restart runner service
+4. **"Secrets not found"**: Verify repository secrets are set
 
-#### Automatic Deployment via GitHub Actions
+## Monitoring URLs
 
-The project is configured for automatic deployment to DigitalOcean App Platform via GitHub Actions:
+- **GitHub Actions**: https://github.com/quanluon/open-ai-agent-chat/actions
+- **Workflow Logs**: Check specific workflow runs for detailed logs
+- **Droplet Access**: SSH to your droplet for real-time monitoring
 
-1. **Repository Secrets**: Ensure these secrets are set in your GitHub repository:
-   - `OPENAI_API_KEY` - Your OpenAI API key
-   - `ASSISTANT_ID` - Your OpenAI Assistant ID
-   - `VECTOR_STORE_ID` - Your OpenAI Vector Store ID
-   - `DIGITALOCEAN_ACCESS_TOKEN` - Your DigitalOcean API token
+## Features
 
-2. **Deployment Process**:
-   - Push to `main` branch triggers automatic deployment
-   - GitHub Actions builds Docker image and pushes to GitHub Container Registry
-   - DigitalOcean App Platform deploys the updated image
-   - Job runs daily at 2 AM UTC automatically
+- ✅ **Automated Scraping**: Daily article collection from support.optisigns.com
+- ✅ **Delta Detection**: Only processes new/updated articles
+- ✅ **Vector Store Sync**: Automatic OpenAI Assistant updates
+- ✅ **Docker Deployment**: Containerized for easy deployment
+- ✅ **Self-Hosted CI/CD**: Runs on your own infrastructure
+- ✅ **Comprehensive Logging**: Detailed execution tracking
+- ✅ **Manual Testing**: On-demand execution for testing
 
-3. **Manual Deployment**:
-   - Go to GitHub Actions tab
-   - Select "Build and Deploy to DigitalOcean" workflow
-   - Click "Run workflow" to trigger manual deployment
-
-4. **Monitor**:
-   - View logs in the DO App Platform dashboard
-   - Check `/app/runs/last_run.json` in the container for run artifacts
-   - GitHub Actions logs show build and deployment status
-
-#### Job Features
-
-- **Delta Detection**: Uses SHA-256 hashing to detect new/updated articles
-- **Efficient Upload**: Only uploads changed files to minimize API usage
-- **Comprehensive Logging**: Logs added, updated, skipped, and removed counts
-- **Error Handling**: Graceful error handling with detailed error reporting
-- **State Persistence**: Maintains sync state between runs
-
-#### Run Artifacts
-
-The job creates detailed run artifacts at `runs/last_run.json`:
+## Example Output
 
 ```json
 {
-  "timestamp": "2024-01-15T10:30:00Z",
+  "timestamp": "2024-01-15T02:00:30Z",
   "duration_seconds": 45.2,
   "status": "success",
   "added": 3,
@@ -290,17 +299,3 @@ The job creates detailed run artifacts at `runs/last_run.json`:
   "total_size_bytes": 1024000
 }
 ```
-
-## Daily Job Logs
-
-- **Platform**: DigitalOcean App Platform
-- **Schedule**: Daily at 2 AM UTC
-- **Log Location**: 
-  - DO App Platform dashboard → App → Logs
-  - GitHub Actions → Build and Deploy to DigitalOcean → View logs
-- **Run Artifacts**: `/app/runs/last_run.json` in container
-- **Status**: [Link to job logs will be added after deployment]
-
-## Screenshot
-
-[Screenshot of Playground answer will be added after testing]
