@@ -6,7 +6,7 @@ on:
       image_tag:
         description: "Docker image tag to deploy"
         required: true
-        default: "ghcr.io/quanluon/optisign-bot:latest"
+        default: "${{ secrets.DOCKERHUB_USERNAME }}/optisign-bot:latest"
 
 jobs:
   deploy:
