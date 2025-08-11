@@ -13,15 +13,11 @@ jobs:
 
       - name: Setup environment
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Listing scripts directory:"
-          ls -la scripts/
-          echo "Making scripts executable..."
-          chmod +x scripts/*.sh
-          echo "Scripts after chmod:"
-          ls -la scripts/*.sh
-          echo "Running setup environment script..."
-          ./scripts/setup-environment.sh
+          mkdir -p /opt/optibot/logs
+          mkdir -p /opt/optibot/articles
+          chmod 777 /opt/optibot/logs
+          chmod 777 /opt/optibot/articles
+          cd /opt/optibot
 
       - name: Create environment file
         run: |
@@ -56,18 +52,25 @@ jobs:
 
       - name: Stop existing containers
         run: |
-          chmod +x scripts/*.sh
-          ./scripts/cleanup-containers.sh
+          echo "Stopping any existing optibot containers..."
+          docker stop optibot-cron optibot-test 2>/dev/null || true
+          docker rm optibot-cron optibot-test 2>/dev/null || true
+          echo "✓ Container cleanup completed"
 
       - name: Setup cron job
         run: |
-          chmod +x scripts/*.sh
-          ./scripts/setup-cron.sh
+          crontab -l 2>/dev/null | grep -v "optibot" | crontab - || true
+          (crontab -l 2>/dev/null; echo "0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
 
       - name: Test deployment
         run: |
-          chmod +x scripts/*.sh
-          ./scripts/test-deployment.sh
+          echo "🧪 Testing deployment with temporary container..."
+          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser optibot:latest || {
+            echo "❌ Deployment test failed!"
+            echo "Check the container logs above for errors."
+            exit 1
+          }
+          echo "✅ Deployment test completed successfully!"
 
       - name: Sync articles from container to host
         run: |
@@ -77,5 +80,14 @@ jobs:
 
       - name: Show deployment status
         run: |
-          chmod +x scripts/*.sh
-          IMAGE_TAG="${{ env.IMAGE_TAG }}" ./scripts/verify-deployment.sh
+          echo "=== Deployment Summary ==="
+          echo "✅ Image: ${{ env.IMAGE_TAG }}"
+          echo "✅ Environment: /opt/optibot/.env"
+          echo "✅ Cron job: Daily at 2 AM UTC"
+          echo "✅ Log directory: /opt/optibot/logs/"
+          echo ""
+          echo "=== Cron Schedule ==="
+          crontab -l | grep optibot || echo "No cron jobs found"
+          echo ""
+          echo "=== Recent Logs ==="
+          tail -5 /opt/optibot/logs/cron.log 2>/dev/null || echo "No recent logs"
