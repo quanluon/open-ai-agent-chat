@@ -44,7 +44,6 @@ load_dotenv()
 
 ROOT = Path(__file__).resolve().parent
 ARTICLES_DIR = Path(os.environ.get("ARTICLES_DIR", ROOT / "articles")).resolve()
-SYNC_STATE_FILE = ROOT / "sync_state.json"
 RUNS_DIR = ROOT / "runs"
 try:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
@@ -59,23 +58,7 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def read_json(path: Path) -> dict:
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
 
-
-def write_json(path: Path, data: dict) -> None:
-    try:
-        path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-    except PermissionError:
-        # If we can't write to the original path, try /tmp
-        tmp_path = Path("/tmp") / path.name
-        print(f"Warning: Cannot write to {path}, using {tmp_path} instead")
-        tmp_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def compute_sha256(path: Path) -> str:
@@ -220,33 +203,17 @@ def main() -> None:
         print(f"✓ Assistant ID: {assistant_id}")
         print(f"✓ Vector Store ID: {vector_store_id}\n")
 
-        # 3) Delta detection
-        print("Step 3: Detecting changes...")
+        # 3) Process all articles (no delta detection)
+        print("Step 3: Processing articles...")
         files = discover_markdown_files(ARTICLES_DIR)
-        sync_state = read_json(SYNC_STATE_FILE)
-        known_files: Dict[str, dict] = sync_state.get("files", {})
-
-        to_add: List[Path] = []
+        
+        to_add: List[Path] = files  # Process all files
         to_update: List[Tuple[Path, str]] = []
         skipped = 0
+        removed = []
 
         for p in files:
-            sha = compute_sha256(p)
-            rec = known_files.get(str(p))
-            if not rec:
-                to_add.append(p)
-                print(f"  + New: {p.name}")
-            else:
-                if rec.get("sha256") != sha:
-                    to_update.append((p, rec.get("file_id", "")))
-                    print(f"  ~ Updated: {p.name}")
-                else:
-                    skipped += 1
-
-        # Detect removed files (present in state but not on disk)
-        removed = [k for k in known_files.keys() if not Path(k).exists()]
-        for path_str in removed:
-            print(f"  - Removed: {Path(path_str).name}")
+            print(f"  + Processing: {p.name}")
 
         print(f"\nDelta Summary:")
         print(f"  Added: {len(to_add)}")
@@ -267,82 +234,23 @@ def main() -> None:
         else:
             print("Step 4: No changes to upload")
 
-        # 5) Update sync state
-        print("\nStep 5: Updating sync state...")
-        for p in to_add:
-            known_files[str(p)] = {
-                "sha256": compute_sha256(p),
-                "file_id": new_file_ids.get(str(p), ""),
-                "uploaded_at": now_iso(),
-                "size_bytes": p.stat().st_size,
-            }
-        for p, _old in to_update:
-            known_files[str(p)] = {
-                "sha256": compute_sha256(p),
-                "file_id": new_file_ids.get(str(p), ""),
-                "uploaded_at": now_iso(),
-                "size_bytes": p.stat().st_size,
-            }
-        # Keep removed entries but mark as removed for audit
-        for path_str in removed:
-            known_files[path_str]["removed"] = True
-            known_files[path_str]["removed_at"] = now_iso()
+        # 5) Job completion
+        print("\nStep 5: Job completed")
 
-        sync_state.update({
-            "files": known_files,
-            "assistant_id": assistant_id,
-            "vector_store_id": vector_store_id,
-            "last_run_at": now_iso(),
-            "total_files": len(files),
-            "total_size_bytes": sum(p.stat().st_size for p in files),
-        })
-        try:
-            write_json(SYNC_STATE_FILE, sync_state)
-        except Exception as e:
-            print(f"Warning: Could not write sync state to {SYNC_STATE_FILE}: {e}")
-            # Write to /tmp as fallback
-            tmp_sync_file = Path("/tmp/sync_state.json")
-            write_json(tmp_sync_file, sync_state)
-            print(f"Sync state written to {tmp_sync_file} instead")
-        print("✓ Sync state updated")
-
-        # 6) Write run artifact
+        # 6) Job completion
         end_time = datetime.now(timezone.utc)
         duration = (end_time - start_time).total_seconds()
         
-        summary = {
-            "timestamp": now_iso(),
-            "duration_seconds": duration,
-            "status": "success",
-            "added": len(to_add),
-            "updated": len(to_update),
-            "skipped": skipped,
-            "removed_detected": len(removed),
-            "deleted_remote_file_ids": deleted_ids,
-            "assistant_id": assistant_id,
-            "vector_store_id": vector_store_id,
-            "articles_dir": str(ARTICLES_DIR),
-            "total_files": len(files),
-            "total_size_bytes": sum(p.stat().st_size for p in files),
-            "logs_hint": "View detailed logs in your DigitalOcean App Platform Logs.",
-        }
-        write_json(RUNS_DIR / "last_run.json", summary)
-        
         print(f"\n✓ Job completed successfully in {duration:.1f} seconds")
-        print(f"✓ Run summary written to: {RUNS_DIR / 'last_run.json'}")
+        print(f"  - Added: {len(to_add)} files")
+        print(f"  - Updated: {len(to_update)} files")
+        print(f"  - Skipped: {skipped} files")
+        print(f"  - Removed: {len(removed)} files")
+        print(f"  - Duration: {duration:.1f} seconds")
         
     except Exception as e:
         end_time = datetime.now(timezone.utc)
         duration = (end_time - start_time).total_seconds()
-        
-        error_summary = {
-            "timestamp": now_iso(),
-            "duration_seconds": duration,
-            "status": "error",
-            "error": str(e),
-            "error_type": type(e).__name__,
-        }
-        write_json(RUNS_DIR / "last_run.json", error_summary)
         
         print(f"\n✗ Job failed after {duration:.1f} seconds: {e}")
         raise

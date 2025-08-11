@@ -47,20 +47,22 @@ jobs:
           docker tag ${{ env.IMAGE_TAG }} optibot:latest
           echo "✅ Image pulled and tagged successfully"
 
-      - name: Stop existing container
+      - name: Stop existing containers
         run: |
-          docker stop optibot-cron || true
-          docker rm optibot-cron || true
+          echo "Stopping any existing optibot containers..."
+          docker stop optibot-cron optibot-test 2>/dev/null || true
+          docker rm optibot-cron optibot-test 2>/dev/null || true
+          echo "✓ Container cleanup completed"
 
       - name: Setup cron job
         run: |
           crontab -l 2>/dev/null | grep -v "optibot" | crontab - || true
-          (crontab -l 2>/dev/null; echo "0 2 * * * /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --user appuser --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
+          (crontab -l 2>/dev/null; echo "*/1 * * * * /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --user appuser --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
 
       - name: Test deployment
         run: |
-          echo "🧪 Testing deployment..."
-          docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --user appuser optibot:latest || {
+          echo "🧪 Testing deployment with temporary container..."
+          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --user appuser optibot:latest || {
             echo "❌ Deployment test failed!"
             echo "Check the container logs above for errors."
             exit 1
