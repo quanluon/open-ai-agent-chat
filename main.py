@@ -196,7 +196,7 @@ def main() -> None:
 
     try:
         # 1) Scrape & normalize articles
-        print("Step 1: Scraping articles from Zendesk API...")
+        print("Step 1: Scraping articles from OptiSigns support...")
         run_scraper(locale=locale, max_articles=max_articles)
         print("✓ Scraping completed\n")
 

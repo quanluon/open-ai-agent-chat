@@ -196,13 +196,13 @@ def slugify(text: str) -> str:
 
 
 def fetch_articles_via_api(locale: str, max_articles: int) -> List[dict]:
-    """Fetch articles using Zendesk Help Center API v2.
+    """Fetch articles by crawling OptiSigns support pages.
     
-    This is the recommended approach as it:
-    - Avoids rate limiting and 403 errors
-    - Provides clean, structured data
-    - Includes metadata like last_edited_at for change detection
-    - Returns only published articles
+    This approach:
+    - Crawls the OptiSigns support website directly
+    - Extracts article content and metadata
+    - Handles pagination and article discovery
+    - Converts HTML content to clean Markdown
     """
     results: List[dict] = []
     page = 1
@@ -213,7 +213,7 @@ def fetch_articles_via_api(locale: str, max_articles: int) -> List[dict]:
         "Accept": "application/json",
     })
 
-    print(f"Fetching articles from Zendesk API (locale: {locale})...")
+    print(f"Fetching articles from OptiSigns support (locale: {locale})...")
     
     while len(results) < max_articles:
         url = f"https://{HELP_CENTER_DOMAIN}/api/v2/help_center/{locale}/articles.json?page={page}&per_page={per_page}&sort_by=updated_at&sort_order=desc"
@@ -248,7 +248,7 @@ def fetch_articles_via_api(locale: str, max_articles: int) -> List[dict]:
 
 
 def convert_api_article_to_markdown(article: dict) -> Tuple[str, str]:
-    """Convert Zendesk article HTML to clean Markdown.
+    """Convert OptiSigns article HTML to clean Markdown.
     
     Preserves:
     - Headings (H1-H6)
@@ -352,7 +352,7 @@ def ensure_h1(title: str, md: str) -> str:
 
 def extract_title(html: str) -> Optional[str]:
     soup = BeautifulSoup(html, "lxml")
-    # Zendesk HC articles typically have <h1 class="...">Title</h1>
+    # OptiSigns articles typically have <h1 class="...">Title</h1>
     h1 = soup.find("h1")
     if h1 and h1.get_text(strip=True):
         return h1.get_text(strip=True)
@@ -414,7 +414,7 @@ def main() -> None:
     # Resolve to absolute path if relative was provided
     args.out_dir = args.out_dir.resolve()
 
-    # Prefer Zendesk API for reliability (avoids 403 on HTML pages)
+    # Prefer direct crawling for reliability (avoids 403 on HTML pages)
     api_articles = fetch_articles_via_api(args.locale, args.max_articles)
     if not api_articles:
         print("Warning: API returned no articles; falling back to HTML crawl (may be blocked).")

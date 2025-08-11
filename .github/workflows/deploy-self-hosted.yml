@@ -2,11 +2,6 @@ name: Manual Deploy
 
 on:
   workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Docker image tag to deploy"
-        required: true
-        default: "${{ secrets.DOCKERHUB_USERNAME }}/optisign-bot:latest"
 
 jobs:
   deploy:
@@ -32,10 +27,22 @@ jobs:
           ARTICLES_DIR=./articles
           EOF
 
+      - name: Set image tag from secrets
+        run: |
+          echo "Using image tag from secrets"
+          echo "IMAGE_TAG=${{ secrets.DOCKERHUB_USERNAME }}/optisign-bot:latest" >> $GITHUB_ENV
+
       - name: Pull Docker image
         run: |
-          docker pull ${{ github.event.inputs.image_tag }}
-          docker tag ${{ github.event.inputs.image_tag }} optibot:latest
+          echo "Pulling image: ${{ env.IMAGE_TAG }}"
+          docker pull ${{ env.IMAGE_TAG }} || {
+            echo "❌ Failed to pull image: ${{ env.IMAGE_TAG }}"
+            echo "Please check if the image exists and you have access to it."
+            echo "Make sure DOCKERHUB_USERNAME secret is set correctly."
+            exit 1
+          }
+          docker tag ${{ env.IMAGE_TAG }} optibot:latest
+          echo "✅ Image pulled and tagged successfully"
 
       - name: Stop existing container
         run: |
@@ -49,5 +56,24 @@ jobs:
 
       - name: Test deployment
         run: |
-          docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs optibot:latest
-          echo "Deployment completed!"
+          echo "🧪 Testing deployment..."
+          docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs optibot:latest || {
+            echo "❌ Deployment test failed!"
+            echo "Check the container logs above for errors."
+            exit 1
+          }
+          echo "✅ Deployment test completed successfully!"
+
+      - name: Show deployment status
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "✅ Image: ${{ env.IMAGE_TAG }}"
+          echo "✅ Environment: /opt/optibot/.env"
+          echo "✅ Cron job: Daily at 2 AM UTC"
+          echo "✅ Log directory: /opt/optibot/logs/"
+          echo ""
+          echo "=== Cron Schedule ==="
+          crontab -l | grep optibot || echo "No cron jobs found"
+          echo ""
+          echo "=== Recent Logs ==="
+          tail -5 /opt/optibot/logs/cron.log 2>/dev/null || echo "No recent logs"
