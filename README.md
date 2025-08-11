@@ -6,7 +6,7 @@ A complete solution for scraping OptiSigns support articles, converting them to 
 
 ![OptiBot Assistant Demo](screen-shot.png)
 
-*OptiBot correctly answers sample questions with cited URLs from the OptiSigns support knowledge base.*
+_OptiBot correctly answers sample questions with cited URLs from the OptiSigns support knowledge base._
 
 ## ✨ Key Features
 
@@ -104,6 +104,7 @@ python src/ask_assistant.py --question "How do I troubleshoot connection issues?
 ```
 
 **Expected Output:**
+
 - **Accurate Answers**: Based on official OptiSigns documentation
 - **Cited Sources**: URLs to original support articles
 - **Contextual Responses**: Relevant information for your specific question
@@ -126,6 +127,148 @@ tail -f logs/cron.log
 
 # Check sync state (persisted between runs)
 cat logs/sync_state.json
+```
+
+### 🕐 Local Cron Setup
+
+For automated daily execution on your local machine, you can set up a cron job:
+
+#### **Option A: Direct Python Cron (Linux/macOS)**
+
+```bash
+# Create logs directory
+mkdir -p logs
+
+# Open crontab for editing
+crontab -e
+
+# Add this line to run daily at 2 AM
+0 2 * * * cd /path/to/your/optibot && /usr/bin/python3 main.py >> logs/cron.log 2>&1
+
+# Or run every 6 hours for testing
+0 */6 * * * cd /path/to/your/optibot && /usr/bin/python3 main.py >> logs/cron.log 2>&1
+```
+
+#### **Option B: Docker Cron (Recommended)**
+
+```bash
+# Create a local cron script
+cat > run_optibot.sh << 'EOF'
+#!/bin/bash
+cd "$(dirname "$0")"
+docker run --rm --env-file .env \
+  -v $(pwd)/logs:/app/runs \
+  -v $(pwd)/articles:/app/articles \
+  optibot:latest >> logs/cron.log 2>&1
+EOF
+
+# Make it executable
+chmod +x run_optibot.sh
+
+# Add to crontab
+crontab -e
+
+# Add this line (adjust path to your project)
+0 2 * * * /path/to/your/optibot/run_optibot.sh
+```
+
+#### **Option C: Systemd Timer (Linux)**
+
+```bash
+# Create service file
+sudo tee /etc/systemd/system/optibot.service << EOF
+[Unit]
+Description=OptiBot Daily Sync
+After=network.target
+
+[Service]
+Type=oneshot
+User=$USER
+WorkingDirectory=$(pwd)
+ExecStart=/usr/bin/python3 main.py
+StandardOutput=append:logs/cron.log
+StandardError=append:logs/cron.log
+EOF
+
+# Create timer file
+sudo tee /etc/systemd/system/optibot.timer << EOF
+[Unit]
+Description=Run OptiBot daily at 2 AM
+Requires=optibot.service
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable optibot.timer
+sudo systemctl start optibot.timer
+```
+
+#### **Cron Schedule Examples**
+
+```bash
+# Daily at 2 AM
+0 2 * * * /path/to/optibot/run_optibot.sh
+
+# Every 6 hours
+0 */6 * * * /path/to/optibot/run_optibot.sh
+
+# Every hour (for testing)
+0 * * * * /path/to/optibot/run_optibot.sh
+
+# Weekdays only at 9 AM
+0 9 * * 1-5 /path/to/optibot/run_optibot.sh
+
+# Every 30 minutes (for intensive testing)
+*/30 * * * * /path/to/optibot/run_optibot.sh
+```
+
+#### **Monitoring Local Cron**
+
+```bash
+# View cron logs
+tail -f logs/cron.log
+
+# Check cron job status
+crontab -l
+
+# Check systemd timer status (if using systemd)
+sudo systemctl status optibot.timer
+sudo systemctl list-timers | grep optibot
+
+# View recent cron executions
+grep "OptiBot" /var/log/syslog | tail -10
+
+# Check if cron service is running
+sudo systemctl status cron
+```
+
+#### **Troubleshooting Local Cron**
+
+```bash
+# Test cron job manually
+./run_optibot.sh
+
+# Check cron service
+sudo systemctl status cron
+
+# View cron logs
+sudo tail -f /var/log/cron
+
+# Test environment variables
+crontab -e
+# Add this line to test:
+* * * * * cd /path/to/optibot && env > /tmp/cron_env.log 2>&1
+
+# Check file permissions
+ls -la run_optibot.sh
+ls -la logs/
 ```
 
 ### Local Testing Results
@@ -402,6 +545,7 @@ The deployment automatically sets up this cron job:
 - `/opt/optibot/articles:/app/articles` - Persists scraped articles
 
 **Container User:**
+
 - Runs as `root` user to ensure full write permissions to mounted volumes
 - This resolves permission issues with volume mounts on the host system
 
@@ -467,15 +611,15 @@ docker pull your-username/optisign-bot:latest
 
 #### Common Error Fixes
 
-| Error                     | Solution                                    |
-| ------------------------- | ------------------------------------------- |
-| "Permission denied"       | Container runs as `root` user automatically |
-| "Docker not found"        | Install Docker and add user to docker group |
-| "Runner offline"          | Restart runner service                      |
-| "Secrets not found"       | Verify repository secrets are set           |
-| "Cron not running"        | `sudo systemctl start cron`                 |
-| "Container name conflict" | Remove existing containers first            |
-| "Scraper permission error"| Container runs as `root` to ensure write access |
+| Error                      | Solution                                        |
+| -------------------------- | ----------------------------------------------- |
+| "Permission denied"        | Container runs as `root` user automatically     |
+| "Docker not found"         | Install Docker and add user to docker group     |
+| "Runner offline"           | Restart runner service                          |
+| "Secrets not found"        | Verify repository secrets are set               |
+| "Cron not running"         | `sudo systemctl start cron`                     |
+| "Container name conflict"  | Remove existing containers first                |
+| "Scraper permission error" | Container runs as `root` to ensure write access |
 
 ## 📁 Project Structure
 
