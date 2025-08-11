@@ -66,21 +66,21 @@ jobs:
       - name: Setup cron job
         run: |
           crontab -l 2>/dev/null | grep -v "optibot" | crontab - || true
-          (crontab -l 2>/dev/null; echo "0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
+          (crontab -l 2>/dev/null; echo "0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
 
       - name: Test deployment
         run: |
           echo "🧪 Testing deployment with temporary container..."
           # First test if container can write to mounted volumes
           echo "Testing write permissions..."
-          docker run --rm --name optibot-test-permissions --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser optibot:latest bash -c "echo 'test' > /app/articles/test.txt && echo 'test' > /app/runs/test.txt && ls -la /app/articles/ && ls -la /app/runs/" || {
+          docker run --rm --name optibot-test-permissions --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles optibot:latest bash -c "echo 'test' > /app/articles/test.txt && echo 'test' > /app/runs/test.txt && ls -la /app/articles/ && ls -la /app/runs/" || {
             echo "❌ Permission test failed!"
             exit 1
           }
           echo "✅ Permission test passed"
-          
+
           # Now run the actual deployment test
-          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser optibot:latest || {
+          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles optibot:latest || {
             echo "❌ Deployment test failed!"
             echo "Check the container logs above for errors."
             exit 1

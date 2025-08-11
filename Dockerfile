@@ -63,7 +63,7 @@ RUN mkdir -p /app/articles /app/runs && \
     chmod 777 /app/runs && \
     chmod 777 /app/articles
 
-# Switch to non-root user
+# Switch to non-root user (but allow override with --user flag)
 USER appuser
 
 # Health check
