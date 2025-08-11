@@ -281,7 +281,7 @@ ARTICLES_DIR=./articles                  # Output directory
 The deployment automatically sets up this cron job:
 
 ```bash
-*/1 * * * * /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
+0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
 ```
 
 ## 🔧 Troubleshooting
