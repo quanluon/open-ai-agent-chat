@@ -2,6 +2,12 @@
 
 A complete solution for scraping OptiSigns support articles, converting them to clean Markdown, and automatically syncing them to an OpenAI Assistant with Vector Store for intelligent customer support.
 
+## 🖼️ Demo: Assistant in Action
+
+![OptiBot Assistant Demo](screen-shot.png)
+
+*OptiBot correctly answers sample questions with cited URLs from the OptiSigns support knowledge base.*
+
 ## ✨ Key Features
 
 ### 🔄 Smart Delta Detection
@@ -85,6 +91,23 @@ python src/ask_assistant.py --question "How do I add a YouTube video?"
 # 4. Run full pipeline
 python main.py
 ```
+
+### 🧪 Testing the Assistant
+
+After setting up the system, you can test the assistant's capabilities:
+
+```bash
+# Test with sample questions
+python src/ask_assistant.py --question "How do I add a YouTube video to my display?"
+python src/ask_assistant.py --question "What are the system requirements for OptiSigns Pro?"
+python src/ask_assistant.py --question "How do I troubleshoot connection issues?"
+```
+
+**Expected Output:**
+- **Accurate Answers**: Based on official OptiSigns documentation
+- **Cited Sources**: URLs to original support articles
+- **Contextual Responses**: Relevant information for your specific question
+- **Professional Tone**: Consistent with OptiSigns brand voice
 
 #### Option C: Docker (Recommended)
 
