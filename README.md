@@ -223,7 +223,7 @@ journalctl -u cron -f
 
 ### Daily Job Details
 
-- **Schedule**: Daily at 2 AM UTC (`*/1 * * * *`)
+- **Schedule**: Daily at 2 AM UTC (`0 2 * * *`)
 - **Command**: Docker container execution with environment variables
 - **Logs**: `/opt/optibot/logs/cron.log`
 - **Persistence**: Logs persist between runs
@@ -281,7 +281,7 @@ ARTICLES_DIR=./articles                  # Output directory
 The deployment automatically sets up this cron job:
 
 ```bash
-*/1 * * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
+0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
 ```
 
 ## 🔧 Troubleshooting
