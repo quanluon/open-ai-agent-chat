@@ -87,7 +87,11 @@ jobs:
       - name: Test deployment
         run: |
           echo "🧪 Testing deployment with temporary container..."
-          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles optibot:latest
+          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles optibot:latest || {
+            echo "❌ Deployment test failed!"
+            echo "Check the container logs above for errors."
+            exit 1
+          }
           echo "✅ Deployment test completed successfully!"
 
       - name: Sync articles from container to host

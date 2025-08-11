@@ -387,8 +387,15 @@ def save_markdown(out_dir: Path, ref: ArticleRef, title: Optional[str], md: str,
     header += "\n"
     final_md = header + ensure_h1(title or ref.slug or ref.article_id, md)
     target = out_dir / ref.filename
-    target.write_text(final_md, encoding="utf-8")
-    return target
+    try:
+        target.write_text(final_md, encoding="utf-8")
+        return target
+    except PermissionError as e:
+        print(f"Warning: Permission denied writing {ref.filename}: {e}")
+        raise
+    except Exception as e:
+        print(f"Warning: Error writing {ref.filename}: {e}")
+        raise
 
 
 def parse_args() -> argparse.Namespace:
@@ -439,8 +446,15 @@ def main() -> None:
                 continue
             md = rewrite_internal_links(md, url_to_filename)
             # For HTML crawl, we don't have last_modified info, so pass None
-            save_markdown(args.out_dir, ref, title, md, last_modified=None)
-            saved += 1
+            try:
+                save_markdown(args.out_dir, ref, title, md, last_modified=None)
+                saved += 1
+            except PermissionError as e:
+                print(f"Warning: Permission denied writing {ref.filename}: {e}")
+                continue
+            except Exception as e:
+                print(f"Warning: Error writing {ref.filename}: {e}")
+                continue
         print(f"Saved {saved} Markdown articles to {args.out_dir}")
         if saved < 30:
             sys.exit(1)
@@ -472,8 +486,15 @@ def main() -> None:
         out = header + md
         args.out_dir.mkdir(parents=True, exist_ok=True)
         target = args.out_dir / ref.filename
-        target.write_text(out, encoding="utf-8")
-        saved += 1
+        try:
+            target.write_text(out, encoding="utf-8")
+            saved += 1
+        except PermissionError as e:
+            print(f"Warning: Permission denied writing {ref.filename}: {e}")
+            continue
+        except Exception as e:
+            print(f"Warning: Error writing {ref.filename}: {e}")
+            continue
 
     print(f"Saved {saved} Markdown articles to {args.out_dir}")
     # Only exit with error if we got significantly fewer articles than requested
