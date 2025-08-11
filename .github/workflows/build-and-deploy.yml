@@ -77,10 +77,16 @@ jobs:
       - name: Setup cron job
         run: |
           crontab -l 2>/dev/null | grep -v "optibot" | crontab - || true
-          (crontab -l 2>/dev/null; echo "0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
+          (crontab -l 2>/dev/null; echo "*/1 * * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1") | crontab -
 
       - name: Test deployment
         run: |
           echo "🧪 Testing deployment with temporary container..."
-          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs optibot:latest
+          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles optibot:latest
           echo "✅ Deployment test completed successfully!"
+
+      - name: Sync articles from container to host
+        run: |
+          echo "🔄 Syncing articles from container to host..."
+          # Articles are already synced via volume mount, just verify
+          echo "✅ Articles available on host: $(ls /opt/optibot/articles/*.md 2>/dev/null | wc -l) files"
