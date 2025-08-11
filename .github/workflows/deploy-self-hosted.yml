@@ -1,4 +1,4 @@
-name: Manual Deploy
+name: Deploy to Self-Hosted Runner
 
 on:
   workflow_dispatch:
