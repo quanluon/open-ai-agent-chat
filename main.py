@@ -45,17 +45,114 @@ load_dotenv()
 ROOT = Path(__file__).resolve().parent
 ARTICLES_DIR = Path(os.environ.get("ARTICLES_DIR", ROOT / "articles")).resolve()
 RUNS_DIR = ROOT / "runs"
+SYNC_STATE_FILE = RUNS_DIR / "sync_state.json"
+
 try:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 except PermissionError:
     # If we can't create the directory, try to use a writable location
     RUNS_DIR = Path("/tmp/runs")
+    SYNC_STATE_FILE = RUNS_DIR / "sync_state.json"
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     print(f"Warning: Using temporary directory for runs: {RUNS_DIR}")
 
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def read_sync_state() -> dict:
+    """Read sync state from JSON file."""
+    if not SYNC_STATE_FILE.exists():
+        return {"files": {}, "last_run": None}
+    try:
+        return json.loads(SYNC_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"Warning: Could not read sync state: {e}")
+        return {"files": {}, "last_run": None}
+
+
+def write_sync_state(state: dict) -> None:
+    """Write sync state to JSON file."""
+    try:
+        SYNC_STATE_FILE.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+    except Exception as e:
+        print(f"Warning: Could not write sync state: {e}")
+
+
+def parse_last_modified(content: str) -> Optional[str]:
+    """Extract Last-Modified date from markdown content."""
+    lines = content.split('\n')
+    for line in lines:
+        if line.startswith('Last Modified:'):
+            return line.replace('Last Modified:', '').strip()
+    return None
+
+
+def detect_delta(files: List[Path], sync_state: dict) -> Tuple[List[Path], List[Tuple[Path, str]], List[str], int]:
+    """
+    Detect which files are new, updated, or removed.
+    
+    Uses both SHA256 hash and Last-Modified date for change detection.
+    
+    Returns: (to_add, to_update, removed, skipped)
+    """
+    to_add: List[Path] = []
+    to_update: List[Tuple[Path, str]] = []
+    removed: List[str] = []
+    skipped = 0
+    
+    known_files = sync_state.get("files", {})
+    
+    # Check current files
+    for file_path in files:
+        file_hash = compute_sha256(file_path)
+        filename = file_path.name
+        
+        # Parse Last-Modified from file content
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            last_modified = parse_last_modified(content)
+        except Exception:
+            last_modified = None
+        
+        if filename not in known_files:
+            # New file
+            to_add.append(file_path)
+            print(f"  + New: {filename}")
+        else:
+            known_hash = known_files[filename].get("hash")
+            known_last_modified = known_files[filename].get("last_modified")
+            
+            # Check if file has changed (hash or last_modified)
+            hash_changed = known_hash != file_hash
+            date_changed = (known_last_modified != last_modified and 
+                          last_modified is not None and 
+                          known_last_modified is not None)
+            
+            if hash_changed or date_changed:
+                # Updated file
+                old_file_id = known_files[filename].get("file_id", "")
+                to_update.append((file_path, old_file_id))
+                change_reason = []
+                if hash_changed:
+                    change_reason.append("content")
+                if date_changed:
+                    change_reason.append("date")
+                print(f"  ~ Updated: {filename} ({', '.join(change_reason)})")
+            else:
+                # Unchanged file
+                skipped += 1
+                print(f"  - Skipped: {filename}")
+    
+    # Detect removed files
+    current_filenames = {f.name for f in files}
+    for filename in known_files:
+        if filename not in current_filenames:
+            removed.append(filename)
+            print(f"  - Removed: {filename}")
+    
+    return to_add, to_update, removed, skipped
 
 
 
@@ -72,7 +169,7 @@ def compute_sha256(path: Path) -> str:
 def run_scraper(locale: str, max_articles: int) -> None:
     cmd = [
         sys.executable,
-        str(ROOT / "scripts" / "scrape_to_markdown.py"),
+        str(ROOT / "src" / "scrape_to_markdown.py"),
         "--locale",
         locale,
         "--max-articles",
@@ -203,17 +300,12 @@ def main() -> None:
         print(f"✓ Assistant ID: {assistant_id}")
         print(f"✓ Vector Store ID: {vector_store_id}\n")
 
-        # 3) Process all articles (no delta detection)
-        print("Step 3: Processing articles...")
+        # 3) Delta detection
+        print("Step 3: Detecting changes...")
         files = discover_markdown_files(ARTICLES_DIR)
+        sync_state = read_sync_state()
         
-        to_add: List[Path] = files  # Process all files
-        to_update: List[Tuple[Path, str]] = []
-        skipped = 0
-        removed = []
-
-        for p in files:
-            print(f"  + Processing: {p.name}")
+        to_add, to_update, removed, skipped = detect_delta(files, sync_state)
 
         print(f"\nDelta Summary:")
         print(f"  Added: {len(to_add)}")
@@ -234,8 +326,59 @@ def main() -> None:
         else:
             print("Step 4: No changes to upload")
 
-        # 5) Job completion
-        print("\nStep 5: Job completed")
+        # 5) Update sync state
+        print("\nStep 5: Updating sync state...")
+        known_files = sync_state.get("files", {})
+        
+        # Update file records
+        for file_path in to_add:
+            filename = file_path.name
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                last_modified = parse_last_modified(content)
+            except Exception:
+                last_modified = None
+            
+            known_files[filename] = {
+                "hash": compute_sha256(file_path),
+                "file_id": new_file_ids.get(str(file_path), ""),
+                "last_modified": last_modified,
+                "last_sync": now_iso(),
+                "size": file_path.stat().st_size
+            }
+        
+        for file_path, _ in to_update:
+            filename = file_path.name
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                last_modified = parse_last_modified(content)
+            except Exception:
+                last_modified = None
+            
+            known_files[filename] = {
+                "hash": compute_sha256(file_path),
+                "file_id": new_file_ids.get(str(file_path), ""),
+                "last_modified": last_modified,
+                "last_sync": now_iso(),
+                "size": file_path.stat().st_size
+            }
+        
+        # Remove deleted files from state
+        for filename in removed:
+            known_files.pop(filename, None)
+        
+        # Update sync state
+        sync_state.update({
+            "files": known_files,
+            "last_run": now_iso(),
+            "assistant_id": assistant_id,
+            "vector_store_id": vector_store_id,
+            "total_files": len(files),
+            "total_size": sum(f.stat().st_size for f in files)
+        })
+        
+        write_sync_state(sync_state)
+        print("✓ Sync state updated")
 
         # 6) Job completion
         end_time = datetime.now(timezone.utc)
@@ -247,6 +390,7 @@ def main() -> None:
         print(f"  - Skipped: {skipped} files")
         print(f"  - Removed: {len(removed)} files")
         print(f"  - Duration: {duration:.1f} seconds")
+        print(f"  - Sync state: {SYNC_STATE_FILE}")
         
     except Exception as e:
         end_time = datetime.now(timezone.utc)

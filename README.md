@@ -2,6 +2,23 @@
 
 A complete solution for scraping OptiSigns support articles, converting them to clean Markdown, and automatically syncing them to an OpenAI Assistant with Vector Store for intelligent customer support.
 
+## ✨ Key Features
+
+### 🔄 Smart Delta Detection
+
+- **Re-scrapes** articles from OptiSigns support website
+- **Detects changes** using SHA256 hashes and Last-Modified dates
+- **Uploads only delta** - new, updated, or removed articles
+- **Skips unchanged** articles to save time and API costs
+- **Tracks sync state** in persistent JSON file
+
+### 📊 Change Detection Methods
+
+1. **Content Hash**: SHA256 hash of article content
+2. **Last-Modified**: Date from OptiSigns API metadata
+3. **File Presence**: Detects removed articles
+4. **Sync State**: Persistent tracking between runs using filenames as keys
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -57,13 +74,13 @@ python main.py
 
 ```bash
 # 1. Test scraping only (10 articles)
-python scripts/scrape_to_markdown.py --max-articles 10
+python src/scrape_to_markdown.py --max-articles 10
 
 # 2. Setup Assistant and Vector Store
-python scripts/bootstrap_optibot.py --docs-dir ./articles
+python src/bootstrap_optibot.py --docs-dir ./articles
 
 # 3. Test Assistant API
-python scripts/ask_assistant.py --question "How do I add a YouTube video?"
+python src/ask_assistant.py --question "How do I add a YouTube video?"
 
 # 4. Run full pipeline
 python main.py
@@ -75,11 +92,17 @@ python main.py
 # Build optimized Docker image
 docker build -t optibot:latest .
 
-# Run with environment file
-docker run --rm --env-file .env -v $(pwd)/logs:/app/runs optibot:latest
+# Run with environment file and volume mounts
+docker run --rm --env-file .env \
+  -v $(pwd)/logs:/app/runs \
+  -v $(pwd)/articles:/app/articles \
+  optibot:latest
 
 # View results in logs
 tail -f logs/cron.log
+
+# Check sync state (persisted between runs)
+cat logs/sync_state.json
 ```
 
 ### Local Testing Results
@@ -89,6 +112,26 @@ After running locally, you should see:
 - **Articles**: Scraped markdown files in `./articles/` directory
 - **Logs**: Execution logs in console output
 - **Results**: Summary printed to console with counts of processed articles
+
+#### Example Delta Detection Output
+
+```
+Step 3: Detecting changes...
+  + New: 38680194603155-optisigns-promax-player.md
+  ~ Updated: 38680194603156-getting-started.md (content, date)
+  - Skipped: 38680194603157-faq.md
+  - Removed: 38680194603158-old-article.md
+
+Delta Summary:
+  Added: 1
+  Updated: 1
+  Skipped: 42
+  Removed: 1
+
+Step 4: Uploading changes to Vector Store...
+✓ Uploaded 2 files
+✓ Deleted 1 old file versions
+```
 
 ## 🚀 How to Deploy (Production)
 
@@ -230,6 +273,13 @@ journalctl -u cron -f
 
 ## 📊 Monitoring & Logs
 
+### Web-Based Log Viewer
+
+- **Cron Log Viewer**: [http://165.232.163.190:8080/](http://165.232.163.190:8080/)
+  - Real-time cron execution logs
+  - Auto-refresh capability
+  - Download logs for analysis
+
 ### GitHub Actions Logs
 
 - **URL**: https://github.com/quanluon/open-ai-agent-chat/actions
@@ -257,6 +307,45 @@ docker ps -a | grep optibot
 
 - **Cron execution**: `/opt/optibot/logs/cron.log`
 
+### Persistent Files
+
+The following files are automatically persisted between container runs via Docker volume mounts:
+
+- **Sync State**: `/opt/optibot/logs/sync_state.json` - Tracks file hashes and metadata for delta detection
+- **Articles**: `/opt/optibot/articles/*.md` - Scraped markdown files
+- **Logs**: `/opt/optibot/logs/cron.log` - Execution logs
+
+#### Sync State Format
+
+The sync state uses filenames as keys for portability:
+
+```json
+{
+  "files": {
+    "article-name.md": {
+      "file_id": "file-abc123",
+      "hash": "sha256-hash",
+      "last_modified": "2024-01-15T10:30:00Z",
+      "last_sync": "2024-01-15T10:30:00Z",
+      "size": 1234
+    }
+  },
+  "last_run": "2024-01-15T10:30:00Z",
+  "total_files": 45
+}
+```
+
+```bash
+# Check sync state (shows delta detection history)
+cat /opt/optibot/logs/sync_state.json
+
+# View article files
+ls -la /opt/optibot/articles/
+
+# Monitor real-time logs
+tail -f /opt/optibot/logs/cron.log
+```
+
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -281,8 +370,13 @@ ARTICLES_DIR=./articles                  # Output directory
 The deployment automatically sets up this cron job:
 
 ```bash
-0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
+0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
 ```
+
+**Volume Mounts:**
+
+- `/opt/optibot/logs:/app/runs` - Persists sync state and logs
+- `/opt/optibot/articles:/app/articles` - Persists scraped articles
 
 ## 🔧 Troubleshooting
 
@@ -359,10 +453,16 @@ docker pull your-username/optisign-bot:latest
 ├── Dockerfile                 # Optimized multi-stage container
 ├── requirements.txt           # Python dependencies
 ├── .env.sample               # Environment template
-├── scripts/
+├── src/
 │   ├── scrape_to_markdown.py # Article scraper
 │   ├── bootstrap_optibot.py  # Assistant setup
 │   └── ask_assistant.py      # Testing tool
+├── scripts/
+│   ├── setup-environment.sh  # Environment setup script
+│   ├── setup-cron.sh         # Cron job setup script
+│   ├── test-deployment.sh    # Deployment test script
+│   ├── cleanup-containers.sh # Container cleanup script
+│   └── verify-deployment.sh  # Deployment verification script
 ├── .github/workflows/
 │   ├── build-and-deploy.yml  # Build and auto deployment
 │   └── deploy-self-hosted.yml # Manual deployment
@@ -373,14 +473,54 @@ docker pull your-username/optisign-bot:latest
 ## 🎯 Features
 
 - ✅ **Automated Scraping**: Daily article collection from OptiSigns support
-- ✅ **Simplified Processing**: Processes all articles each run (no delta detection)
+- ✅ **Smart Delta Detection**: Only processes new/updated articles
 - ✅ **Vector Store Sync**: Automatic OpenAI Assistant updates
 - ✅ **Optimized Docker**: Multi-stage build with security best practices
 - ✅ **CI/CD Pipeline**: GitHub Actions with Docker Hub integration
 - ✅ **Self-Hosted Deployment**: Runs on your own DigitalOcean infrastructure
+- ✅ **Modular Scripts**: Reusable shell scripts for deployment tasks
 - ✅ **Console Logging**: All output goes to cron.log
 - ✅ **Manual Testing**: On-demand execution for testing
 - ✅ **Cron Scheduling**: Reliable daily execution
+
+## 🔧 Deployment Scripts
+
+The project includes modular shell scripts for deployment tasks:
+
+### **Environment Setup**
+
+```bash
+./scripts/setup-environment.sh
+```
+
+- Creates necessary directories (`/opt/optibot/logs`, `/opt/optibot/articles`)
+- Sets proper permissions (777 for container access)
+- Changes to project directory
+
+### **Cron Job Management**
+
+```bash
+./scripts/setup-cron.sh
+```
+
+- Removes existing OptiBot cron entries
+- Adds daily cron job (2 AM UTC)
+- Verifies cron job installation
+
+### **Container Management**
+
+```bash
+./scripts/cleanup-containers.sh    # Stop/remove existing containers
+./scripts/test-deployment.sh       # Test deployment with temporary container
+./scripts/verify-deployment.sh     # Show deployment status and logs
+```
+
+### **Benefits**
+
+- **Maintainability**: Long commands moved to readable scripts
+- **Reusability**: Scripts can be run independently
+- **Debugging**: Easier to troubleshoot deployment issues
+- **Consistency**: Same commands used across workflows
 
 ## 📊 Expected Output
 

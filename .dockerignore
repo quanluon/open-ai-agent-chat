@@ -64,8 +64,8 @@ test_*
 *_test.py
 
 # Development files
-scripts/bootstrap_optibot.py
-scripts/ask_assistant.py
+src/bootstrap_optibot.py
+src/ask_assistant.py
 
 # Temporary files
 *.tmp

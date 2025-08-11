@@ -379,9 +379,12 @@ def rewrite_internal_links(md: str, url_to_filename: Dict[str, str]) -> str:
     return re.sub(r"\[([^\]]+)\]\(([^)]+)\)", repl, md)
 
 
-def save_markdown(out_dir: Path, ref: ArticleRef, title: Optional[str], md: str) -> Path:
+def save_markdown(out_dir: Path, ref: ArticleRef, title: Optional[str], md: str, last_modified: Optional[str] = None) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
-    header = f"Article URL: {ref.url}\n\n"
+    header = f"Article URL: {ref.url}\n"
+    if last_modified:
+        header += f"Last Modified: {last_modified}\n"
+    header += "\n"
     final_md = header + ensure_h1(title or ref.slug or ref.article_id, md)
     target = out_dir / ref.filename
     target.write_text(final_md, encoding="utf-8")
@@ -435,7 +438,8 @@ def main() -> None:
             if not md:
                 continue
             md = rewrite_internal_links(md, url_to_filename)
-            save_markdown(args.out_dir, ref, title, md)
+            # For HTML crawl, we don't have last_modified info, so pass None
+            save_markdown(args.out_dir, ref, title, md, last_modified=None)
             saved += 1
         print(f"Saved {saved} Markdown articles to {args.out_dir}")
         if saved < 30:
@@ -457,7 +461,14 @@ def main() -> None:
     for art, ref in zip(api_articles, refs):
         md, source_url = convert_api_article_to_markdown(art)
         md = rewrite_internal_links(md, url_to_filename)
-        header = f"Article URL: {source_url}\n\n"
+        
+        # Extract last modified date from article metadata
+        last_modified = art.get("updated_at") or art.get("created_at")
+        
+        header = f"Article URL: {source_url}\n"
+        if last_modified:
+            header += f"Last Modified: {last_modified}\n"
+        header += "\n"
         out = header + md
         args.out_dir.mkdir(parents=True, exist_ok=True)
         target = args.out_dir / ref.filename
