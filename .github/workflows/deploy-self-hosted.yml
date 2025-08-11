@@ -6,7 +6,7 @@ on:
       image_tag:
         description: "Docker image tag to deploy"
         required: true
-        default: "ghcr.io/optisign-bot:latest"
+        default: "ghcr.io/quanluon/optisign-bot:latest"
 
 jobs:
   deploy:

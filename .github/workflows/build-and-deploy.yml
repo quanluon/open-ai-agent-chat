@@ -30,13 +30,13 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          tags: ghcr.io/${{ github.repository_owner }}/optisign-bot:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Set image output
         run: |
-          echo "IMAGE_TAG=ghcr.io/${{ github.repository }}:latest" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/optisign-bot:latest" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy to Self-Hosted
@@ -65,8 +65,8 @@ jobs:
 
       - name: Pull latest image
         run: |
-          docker pull ghcr.io/${{ github.repository }}:latest
-          docker tag ghcr.io/${{ github.repository }}:latest optibot:latest
+          docker pull ghcr.io/${{ github.repository_owner }}/optisign-bot:latest
+          docker tag ghcr.io/${{ github.repository_owner }}/optisign-bot:latest optibot:latest
 
       - name: Stop existing container
         run: |
