@@ -46,7 +46,13 @@ ROOT = Path(__file__).resolve().parent
 ARTICLES_DIR = Path(os.environ.get("ARTICLES_DIR", ROOT / "articles")).resolve()
 SYNC_STATE_FILE = ROOT / "sync_state.json"
 RUNS_DIR = ROOT / "runs"
-RUNS_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    # If we can't create the directory, try to use a writable location
+    RUNS_DIR = Path("/tmp/runs")
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"Warning: Using temporary directory for runs: {RUNS_DIR}")
 
 
 def now_iso() -> str:
@@ -63,7 +69,13 @@ def read_json(path: Path) -> dict:
 
 
 def write_json(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    try:
+        path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    except PermissionError:
+        # If we can't write to the original path, try /tmp
+        tmp_path = Path("/tmp") / path.name
+        print(f"Warning: Cannot write to {path}, using {tmp_path} instead")
+        tmp_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def compute_sha256(path: Path) -> str:
@@ -284,7 +296,14 @@ def main() -> None:
             "total_files": len(files),
             "total_size_bytes": sum(p.stat().st_size for p in files),
         })
-        write_json(SYNC_STATE_FILE, sync_state)
+        try:
+            write_json(SYNC_STATE_FILE, sync_state)
+        except Exception as e:
+            print(f"Warning: Could not write sync state to {SYNC_STATE_FILE}: {e}")
+            # Write to /tmp as fallback
+            tmp_sync_file = Path("/tmp/sync_state.json")
+            write_json(tmp_sync_file, sync_state)
+            print(f"Sync state written to {tmp_sync_file} instead")
         print("✓ Sync state updated")
 
         # 6) Write run artifact
