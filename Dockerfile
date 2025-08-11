@@ -7,8 +7,7 @@ FROM python:3.12-slim as builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_USER=1
+    PIP_NO_CACHE_DIR=1
 
 # Install system dependencies for building wheels
 RUN apt-get update && apt-get install -y --no-install-recommends \
