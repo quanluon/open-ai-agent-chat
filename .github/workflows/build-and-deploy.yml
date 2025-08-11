@@ -56,6 +56,10 @@ jobs:
           chmod 777 /opt/optibot/articles
           # Ensure the container user (appuser) can write to these directories
           chown -R 1000:1000 /opt/optibot/logs /opt/optibot/articles 2>/dev/null || true
+          # Double-check permissions
+          ls -la /opt/optibot/
+          ls -la /opt/optibot/logs/
+          ls -la /opt/optibot/articles/
           cd /opt/optibot
 
       - name: Create environment file
@@ -87,7 +91,16 @@ jobs:
       - name: Test deployment
         run: |
           echo "🧪 Testing deployment with temporary container..."
-          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles optibot:latest || {
+          # First test if container can write to mounted volumes
+          echo "Testing write permissions..."
+          docker run --rm --name optibot-test-permissions --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser optibot:latest bash -c "echo 'test' > /app/articles/test.txt && echo 'test' > /app/runs/test.txt && ls -la /app/articles/ && ls -la /app/runs/" || {
+            echo "❌ Permission test failed!"
+            exit 1
+          }
+          echo "✅ Permission test passed"
+          
+          # Now run the actual deployment test
+          docker run --rm --name optibot-test --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser optibot:latest || {
             echo "❌ Deployment test failed!"
             echo "Check the container logs above for errors."
             exit 1
