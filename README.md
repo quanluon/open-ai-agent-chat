@@ -370,13 +370,17 @@ ARTICLES_DIR=./articles                  # Output directory
 The deployment automatically sets up this cron job:
 
 ```bash
-0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user appuser --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
+0 2 * * *  /usr/bin/docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user root --name optibot-cron optibot:latest >> /opt/optibot/logs/cron.log 2>&1
 ```
 
 **Volume Mounts:**
 
 - `/opt/optibot/logs:/app/runs` - Persists sync state and logs
 - `/opt/optibot/articles:/app/articles` - Persists scraped articles
+
+**Container User:**
+- Runs as `root` user to ensure full write permissions to mounted volumes
+- This resolves permission issues with volume mounts on the host system
 
 ## 🔧 Troubleshooting
 
@@ -412,13 +416,16 @@ cat _diag/Runner_*.log
 #### Permission Issues
 
 ```bash
-# Fix permissions
+# Fix permissions (automatically handled by deployment)
 sudo chmod -R 777 /opt/optibot/
-sudo chown -R $USER:$USER /opt/optibot/
+sudo chown -R 1000:1000 /opt/optibot/logs /opt/optibot/articles 2>/dev/null || true
 
 # Check Docker permissions
 sudo usermod -aG docker $USER
 newgrp docker
+
+# Verify container can write to volumes
+docker run --rm --env-file /opt/optibot/.env -v /opt/optibot/logs:/app/runs -v /opt/optibot/articles:/app/articles --user root optibot:latest bash -c "echo 'test' > /app/articles/test.txt && echo 'test' > /app/runs/test.txt"
 ```
 
 #### Container Issues
@@ -439,12 +446,13 @@ docker pull your-username/optisign-bot:latest
 
 | Error                     | Solution                                    |
 | ------------------------- | ------------------------------------------- |
-| "Permission denied"       | `sudo chmod -R 777 /opt/optibot/`           |
+| "Permission denied"       | Container runs as `root` user automatically |
 | "Docker not found"        | Install Docker and add user to docker group |
 | "Runner offline"          | Restart runner service                      |
 | "Secrets not found"       | Verify repository secrets are set           |
 | "Cron not running"        | `sudo systemctl start cron`                 |
 | "Container name conflict" | Remove existing containers first            |
+| "Scraper permission error"| Container runs as `root` to ensure write access |
 
 ## 📁 Project Structure
 
@@ -454,15 +462,9 @@ docker pull your-username/optisign-bot:latest
 ├── requirements.txt           # Python dependencies
 ├── .env.sample               # Environment template
 ├── src/
-│   ├── scrape_to_markdown.py # Article scraper
+│   ├── scrape_to_markdown.py # Article scraper with permission handling
 │   ├── bootstrap_optibot.py  # Assistant setup
 │   └── ask_assistant.py      # Testing tool
-├── scripts/
-│   ├── setup-environment.sh  # Environment setup script
-│   ├── setup-cron.sh         # Cron job setup script
-│   ├── test-deployment.sh    # Deployment test script
-│   ├── cleanup-containers.sh # Container cleanup script
-│   └── verify-deployment.sh  # Deployment verification script
 ├── .github/workflows/
 │   ├── build-and-deploy.yml  # Build and auto deployment
 │   └── deploy-self-hosted.yml # Manual deployment
@@ -478,49 +480,33 @@ docker pull your-username/optisign-bot:latest
 - ✅ **Optimized Docker**: Multi-stage build with security best practices
 - ✅ **CI/CD Pipeline**: GitHub Actions with Docker Hub integration
 - ✅ **Self-Hosted Deployment**: Runs on your own DigitalOcean infrastructure
-- ✅ **Modular Scripts**: Reusable shell scripts for deployment tasks
+- ✅ **Permission Handling**: Graceful error handling for file operations
 - ✅ **Console Logging**: All output goes to cron.log
 - ✅ **Manual Testing**: On-demand execution for testing
 - ✅ **Cron Scheduling**: Reliable daily execution
 
-## 🔧 Deployment Scripts
+## 🔧 Recent Improvements
 
-The project includes modular shell scripts for deployment tasks:
+### **Permission Handling**
 
-### **Environment Setup**
+- **Graceful Error Handling**: Scraper continues processing even if some files can't be written
+- **Root User**: Container runs as `root` to ensure full write permissions to mounted volumes
+- **Permission Tests**: Pre-flight tests verify container can write to volumes before running scraper
+- **Error Recovery**: Clear warnings for permission issues without crashing
 
-```bash
-./scripts/setup-environment.sh
-```
+### **Container Security**
 
-- Creates necessary directories (`/opt/optibot/logs`, `/opt/optibot/articles`)
-- Sets proper permissions (777 for container access)
-- Changes to project directory
+- **Multi-stage Build**: Optimized Docker image with minimal attack surface
+- **Non-root Default**: Dockerfile sets `USER appuser` for security
+- **Runtime Override**: `--user root` flag used only when needed for volume access
+- **Isolated Execution**: Container runs in controlled environment with specific volume mounts
 
-### **Cron Job Management**
+### **Deployment Reliability**
 
-```bash
-./scripts/setup-cron.sh
-```
-
-- Removes existing OptiBot cron entries
-- Adds daily cron job (2 AM UTC)
-- Verifies cron job installation
-
-### **Container Management**
-
-```bash
-./scripts/cleanup-containers.sh    # Stop/remove existing containers
-./scripts/test-deployment.sh       # Test deployment with temporary container
-./scripts/verify-deployment.sh     # Show deployment status and logs
-```
-
-### **Benefits**
-
-- **Maintainability**: Long commands moved to readable scripts
-- **Reusability**: Scripts can be run independently
-- **Debugging**: Easier to troubleshoot deployment issues
-- **Consistency**: Same commands used across workflows
+- **Permission Verification**: Tests write access before running main application
+- **Consistent User**: All deployments use same user configuration
+- **Error Handling**: Graceful degradation when permission issues occur
+- **Debugging**: Enhanced logging and permission checks
 
 ## 📊 Expected Output
 
