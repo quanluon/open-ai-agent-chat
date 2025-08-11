@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Setup environment
         run: |
-          chmod +x scripts/*.sh
+          chmod +x ./scripts/*.sh
           ./scripts/setup-environment.sh
 
       - name: Create environment file
@@ -46,17 +46,17 @@ jobs:
 
       - name: Stop existing containers
         run: |
-          chmod +x scripts/*.sh
+          chmod +x ./scripts/*.sh
           ./scripts/cleanup-containers.sh
 
       - name: Setup cron job
         run: |
-          chmod +x scripts/*.sh
+          chmod +x ./scripts/*.sh
           ./scripts/setup-cron.sh
 
       - name: Test deployment
         run: |
-          chmod +x scripts/*.sh
+          chmod +x ./scripts/*.sh
           ./scripts/test-deployment.sh
 
       - name: Sync articles from container to host
@@ -67,5 +67,5 @@ jobs:
 
       - name: Show deployment status
         run: |
-          chmod +x scripts/*.sh
+          chmod +x ./scripts/*.sh
           IMAGE_TAG="${{ env.IMAGE_TAG }}" ./scripts/verify-deployment.sh
