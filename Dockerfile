@@ -60,7 +60,8 @@ COPY --chown=appuser:appuser . .
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/articles /app/runs && \
     chown -R appuser:appuser /app && \
-    chmod 777 /app/runs
+    chmod 777 /app/runs && \
+    chmod 777 /app/articles
 
 # Switch to non-root user
 USER appuser

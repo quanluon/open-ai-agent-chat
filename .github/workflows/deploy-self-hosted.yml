@@ -17,6 +17,8 @@ jobs:
           mkdir -p /opt/optibot/articles
           chmod 777 /opt/optibot/logs
           chmod 777 /opt/optibot/articles
+          # Ensure the container user (appuser) can write to these directories
+          chown -R 1000:1000 /opt/optibot/logs /opt/optibot/articles 2>/dev/null || true
           cd /opt/optibot
 
       - name: Create environment file

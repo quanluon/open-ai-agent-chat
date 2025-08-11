@@ -63,10 +63,13 @@ def now_iso() -> str:
 
 def read_sync_state() -> dict:
     """Read sync state from JSON file."""
-    if not SYNC_STATE_FILE.exists():
-        return {"files": {}, "last_run": None}
     try:
+        if not SYNC_STATE_FILE.exists():
+            return {"files": {}, "last_run": None}
         return json.loads(SYNC_STATE_FILE.read_text(encoding="utf-8"))
+    except PermissionError:
+        print(f"Warning: Permission denied accessing {SYNC_STATE_FILE}, using empty state")
+        return {"files": {}, "last_run": None}
     except Exception as e:
         print(f"Warning: Could not read sync state: {e}")
         return {"files": {}, "last_run": None}
@@ -75,7 +78,11 @@ def read_sync_state() -> dict:
 def write_sync_state(state: dict) -> None:
     """Write sync state to JSON file."""
     try:
+        # Ensure the directory exists
+        SYNC_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         SYNC_STATE_FILE.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+    except PermissionError:
+        print(f"Warning: Permission denied writing to {SYNC_STATE_FILE}, sync state not persisted")
     except Exception as e:
         print(f"Warning: Could not write sync state: {e}")
 
